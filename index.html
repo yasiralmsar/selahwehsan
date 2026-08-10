@@ -633,11 +633,9 @@ function initSearch() {
 }
 
 loadData();
-</script>
 <script>
 /* =========================================================================
    لوحة التحكم (مشرف فقط): رفع كشف حساب PDF (الراجحي) وفرزه تلقائياً
-   ثم إرساله إلى تبويب "تفاصيل التحويلات لكل عضو" في ملف الإكسل عبر Google Apps Script.
    ========================================================================= */
 
 if (window.pdfjsLib) {
@@ -645,17 +643,13 @@ if (window.pdfjsLib) {
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
 
-// نفس رابط سكربت Google Apps Script المستخدم لجلب البيانات (doGet) يُستخدم أيضاً لاستقبالها (doPost)
 const TRANSFER_API_URL = API_URL;
 
-// أنواع الحوالات المعروفة في كشوف الراجحي
-const TRANSFER_TYPES = [
-  "تحويل داخلي", "تحويل خارجي", "أمر مستديم", "حوالات فورية واردة",
-  "حوالة محلية واردة", "تحويل عبر سريع", "ايداع نقدي", "إيداع نقدي", "غير محدد"
-];
+// الأنواع المطلوبة فقط حسب توجيهاتك
+const TRANSFER_TYPES = ["تحويل", "أمر مستديم"];
 
-let adminKeyValue = "";      // يُحفظ في الذاكرة فقط لمدة الجلسة
-let reviewRows = [];         // الصفوف المستخرجة/المعدّلة قبل الإرسال
+let adminKeyValue = "";
+let reviewRows = [];
 let rowIdCounter = 0;
 
 document.getElementById('adminTriggerBtn').addEventListener('click', openAdminPanel);
@@ -740,7 +734,7 @@ async function extractPdfLines(file) {
   return lines;
 }
 
-/* ---------- 2) تحليل الأسطر واستخراج كل عملية (تاريخ / اسم / نوع / مبلغ) ---------- */
+/* ---------- 2) تحليل الأسطر واستخراج البيانات بدقة بناءً على هيكل الراجحي ---------- */
 function parseStatementLines(lines) {
   const dateRe = /(\d{4}[\/\-]\d{2}[\/\-]\d{2})/;
   const amountRe = /([\d,]+\.\d{2})\s*SAR/g;
@@ -748,17 +742,37 @@ function parseStatementLines(lines) {
 
   lines.forEach(line => {
     const dateMatch = line.match(dateRe);
-    if (!dateMatch) return;
+    if (!dateMatch) return; // يجب أن يحتوي السطر على تاريخ
 
+    // استخراج جميع المبالغ المتبوعة بـ SAR في السطر (الترتيب في كشف الراجحي: [الرصيد، دائن، مدين])
     const amounts = [...line.matchAll(amountRe)].map(m => m[1].replace(/,/g, ''));
-    if (amounts.length === 0) return;
+    if (amounts.length < 2) return; 
 
-    let type = TRANSFER_TYPES.find(t => t !== "غير محدد" && line.includes(t)) || "غير محدد";
+    // بما أن المبلغ الأول من اليسار غالباً هو "الرصيد" والمبلغ الثاني هو "دائن"، نأخذ المبلغ الذي يمثل "دائن" حصراً (قبل الأخير أو الثاني حسب الترتيب)
+    // في كشف الراجحي الظاهر: الرصيد ثم دائن ثم مدين. إذن دائن هو العنصر قبل الأخير إذا كان هناك 3 مبالغ.
+    let creditAmount = "";
+    if (amounts.length >= 3) {
+      creditAmount = amounts[amounts.length - 2]; // قيمة عمود دائن
+    } else {
+      creditAmount = amounts[0];
+    }
 
+    // استبعاد العمليات التي يكون فيها الدائن صفراً أو غير موجود لتجنب قراءة الرصيد الخاطئ
+    if (!creditAmount || parseFloat(creditAmount) === 0) return;
+
+    // تحديد نوع الحوالة حصراً: "أمر مستديم" أو "تحويل"
+    let type = "تحويل";
+    if (line.includes("أمر مستديم")) {
+      type = "أمر مستديم";
+    }
+
+    // استخراج اسم العضو من تفاصيل العملية (إزالة الكلمات التقنية والتاريخ والمبالغ والكلمات الافتتاحية)
     let cleanLine = line
       .replace(dateMatch[0], '')
       .replace(/[\d,]+\.\d{2}\s*SAR/g, '')
-      .replace(/Ref\.?\s*No\.?|الوقت|ملاحظة|عملية تحويل داخلية|حوالات فورية واردة|أمر مستديم|حوالة محلية واردة|تاريخ|الرصيد|مدين|دائن/g, '')
+      .replace(/Ref\.?\s*No\.?|الوقت|ملاحظة|عملية تحويل داخلية|حوالات فورية واردة|أمر مستديم|حوالة محلية واردة|تاريخ|الرصيد|مدين|دائن|الرقم التسلسلي|تفاصيل العملية/g, '')
+      .replace(/\d{2}:\d{2}:\d{2}/g, '') // إزالة الوقت مثل 19:32:02
+      .replace(/FRACCT[\d\/]+/g, '')    // إزالة رموز الحسابات التقنية
       .trim();
 
     let name = cleanLine.length > 2 ? cleanLine : "حوالة بنكية";
@@ -768,7 +782,7 @@ function parseStatementLines(lines) {
       date: dateMatch[1].replace(/-/g, '/'),
       name: name,
       type: type,
-      amount: amounts[amounts.length - 1],
+      amount: creditAmount,
       raw: line
     });
   });
@@ -787,7 +801,7 @@ async function handleParsePdf() {
     if (reviewRows.length === 0) {
       showAdminMsg('لم يتم التعرف تلقائياً على أي عملية داخل الملف. يمكنك إضافة الصفوف يدوياً أدناه.', 'error');
     } else {
-      showAdminMsg(`تم استخراج ${reviewRows.length} عملية. راجع البيانات أدناه وعدّل ما يلزم قبل الإرسال.`, 'success');
+      showAdminMsg(`تم استخراج ${reviewRows.length} عملية بنجاح. راجع البيانات أدناه قبل الإرسال.`, 'success');
     }
     renderReviewTable();
   } catch (err) {
@@ -813,7 +827,7 @@ function renderReviewTable() {
     </div>
   `;
   document.getElementById('addRowBtn').addEventListener('click', () => {
-    reviewRows.push({ id: 'r' + (rowIdCounter++), date: '', name: '', type: 'غير محدد', amount: '' });
+    reviewRows.push({ id: 'r' + (rowIdCounter++), date: '', name: '', type: 'تحويل', amount: '' });
     renderReviewTable();
   });
   document.getElementById('submitRowsBtn').addEventListener('click', handleSubmitRows);
