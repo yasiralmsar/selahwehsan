@@ -633,10 +633,12 @@ function initSearch() {
 }
 
 loadData();
+</script>
+
 <script>
 /* =========================================================================
    لوحة التحكم (مشرف فقط): رفع كشف حساب PDF (الراجحي) وفرزه تلقائياً
-   ثم إرساله إلى تبويب "تفاصيل التحويلات لكل عضو" في ملف الإكسل عبر Google Apps Script.
+   ثم إرساله إلى تبويب "سجل_الحوالات" في ملف الإكسل عبر Google Apps Script.
    ========================================================================= */
 
 if (window.pdfjsLib) {
@@ -647,13 +649,13 @@ if (window.pdfjsLib) {
 // نفس رابط سكربت Google Apps Script المستخدم لجلب البيانات (doGet) يُستخدم أيضاً لاستقبالها (doPost)
 const TRANSFER_API_URL = API_URL;
 
-// أنواع الحوالات المعروفة في كشوف الراجحي
+// أنواع الحوالات المعروفة في كشوف الراجحي — عدّل/أضف حسب ما يظهر فعلياً في كشفك
 const TRANSFER_TYPES = [
-  "تحويل داخلي", "تحويل خارجي", "أمر مستديم", "حوالات فورية واردة",
-  "حوالة محلية واردة", "تحويل عبر سريع", "ايداع نقدي", "إيداع نقدي", "غير محدد"
+  "تحويل داخلي", "تحويل خارجي", "أمر مستديم", "حوالة فورية",
+  "تحويل عبر سريع", "ايداع نقدي", "إيداع نقدي", "تحويل من حساب آخر", "غير محدد"
 ];
 
-let adminKeyValue = "";      // يُحفظ في الذاكرة فقط لمدة الجلسة
+let adminKeyValue = "";      // يُحفظ في الذاكرة فقط لمدة الجلسة (لا يُخزَّن على الجهاز)
 let reviewRows = [];         // الصفوف المستخرجة/المعدّلة قبل الإرسال
 let rowIdCounter = 0;
 
@@ -718,17 +720,18 @@ async function extractPdfLines(file) {
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
 
+    // تجميع العناصر النصية في "أسطر" حسب إحداثي Y، ثم ترتيبها من اليمين لليسار (عربي)
     const rows = {};
     content.items.forEach(item => {
-      const y = Math.round(item.transform[5] / 3) * 3;
+      const y = Math.round(item.transform[5] / 3) * 3; // تجميع بتفاوت بسيط
       (rows[y] = rows[y] || []).push(item);
     });
     Object.keys(rows)
       .map(Number)
-      .sort((a, b) => b - a)
+      .sort((a, b) => b - a) // من أعلى الصفحة لأسفلها
       .forEach(y => {
         const lineText = rows[y]
-          .sort((a, b) => b.transform[4] - a.transform[4])
+          .sort((a, b) => b.transform[4] - a.transform[4]) // يمين لليسار
           .map(i => i.str)
           .join(' ')
           .replace(/\s+/g, ' ')
@@ -741,30 +744,26 @@ async function extractPdfLines(file) {
 
 /* ---------- 2) تحليل الأسطر واستخراج كل عملية (تاريخ / اسم / نوع / مبلغ) ---------- */
 function parseStatementLines(lines) {
-  const dateRe = /(\d{4}[\/\-]\d{2}[\/\-]\d{2})/;
-  const amountRe = /([\d,]+\.\d{2})\s*SAR/g;
+  const dateRe = /(\d{2}[\/\-]\d{2}[\/\-]\d{4})/;
+  const amountRe = /([\d,]+\.\d{2})/g;
   const results = [];
 
   lines.forEach(line => {
     const dateMatch = line.match(dateRe);
-    if (!dateMatch) return;
+    if (!dateMatch) return; // سطر لا يحتوي تاريخاً، على الأغلب ليس صف عملية
 
     const amounts = [...line.matchAll(amountRe)].map(m => m[1].replace(/,/g, ''));
     if (amounts.length === 0) return;
 
-    let type = TRANSFER_TYPES.find(t => t !== "غير محدد" && line.includes(t)) || "غير محدد";
+    const type = TRANSFER_TYPES.find(t => t !== "غير محدد" && line.includes(t)) || "غير محدد";
 
-    let cleanLine = line
-      .replace(dateMatch[0], '')
-      .replace(/[\d,]+\.\d{2}\s*SAR/g, '')
-      .replace(/Ref\.?\s*No\.?|الوقت|ملاحظة|عملية تحويل داخلية|حوالات فورية واردة|أمر مستديم|حوالة محلية واردة|تاريخ|الرصيد|مدين|دائن/g, '')
-      .trim();
-
-    let name = cleanLine.length > 2 ? cleanLine : "حوالة بنكية";
+    let name = "";
+    const nameMatch = line.match(/(?:من|لصالح|المرسل)\s+([\u0621-\u064A\s]{3,40}?)(?:\s+(?:رقم|حساب|تحويل|بتاريخ|IBAN)|$)/);
+    if (nameMatch) name = nameMatch[1].trim();
 
     results.push({
       id: 'r' + (rowIdCounter++),
-      date: dateMatch[1].replace(/-/g, '/'),
+      date: dateMatch[1],
       name: name,
       type: type,
       amount: amounts[amounts.length - 1],
@@ -798,6 +797,8 @@ async function handleParsePdf() {
 function renderReviewTable() {
   const area = document.getElementById('reviewArea');
   if (!reviewRows.length) { area.innerHTML = ''; return; }
+
+  const typeOptions = TRANSFER_TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
 
   area.innerHTML = `
     <div class="review-table-wrap">
@@ -867,6 +868,8 @@ async function handleSubmitRows() {
         date: r.date, name: r.name, type: r.type, amount: parseFloat(r.amount) || 0
       }))
     };
+    // ملاحظة: نرسل بدون تحديد Content-Type كـ application/json لتفادي CORS preflight
+    // مع Google Apps Script — السكربت يقرأ الجسم كنص ثم يحوّله JSON بنفسه.
     const resp = await fetch(TRANSFER_API_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await resp.json();
 
@@ -874,7 +877,7 @@ async function handleSubmitRows() {
       showAdminMsg(`تم إضافة ${result.added} عملية بنجاح إلى سجل الحوالات.`, 'success');
       reviewRows = [];
       document.getElementById('reviewArea').innerHTML = '';
-      loadData();
+      loadData(); // تحديث لوحة المعلومات المعروضة
     } else {
       showAdminMsg('فشل الإرسال: ' + (result.error || 'خطأ غير معروف'), 'error');
     }
