@@ -817,7 +817,7 @@ async function extractTransactionsFromPdf(file) {
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
   const transactions = [];
-  let lastCols = null; // آخر إحداثيات أعمدة مكتشفة (تُحمل بين الصفحات إن لم تتكرر رؤوس الأعمدة)
+  let lastCols = null; 
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
@@ -829,7 +829,7 @@ async function extractTransactionsFromPdf(file) {
       text: fixBidi(it.str)
     })).filter(it => it.text);
 
-    items.sort((a, b) => b.y - a.y); // من أعلى الصفحة لأسفلها
+    items.sort((a, b) => b.y - a.y); 
 
     const bands = [];
     let cur = [], lastY = null;
@@ -845,23 +845,33 @@ async function extractTransactionsFromPdf(file) {
     if (cur.length) bands.push(cur);
     if (!bands.length) continue;
 
-    // اكتشاف ديناميكي لمواقع الأعمدة من صف العناوين الفعلي في هذه الصفحة (أدق من إحداثيات ثابتة)
+    // --- تحسين اكتشاف الأعمدة بمرونة ---
     let cols = null;
     for (const band of bands) {
-      const map = {};
-      band.forEach(i => { map[i.text] = i.x; });
-      if (map['الرصيد'] !== undefined && map['دائن'] !== undefined && map['مدين'] !== undefined && map['التاريخ'] !== undefined) {
-        cols = { balance: map['الرصيد'], credit: map['دائن'], debit: map['مدين'], date: map['التاريخ'] };
-        break;
+      const textJoined = band.map(i => i.text).join(' ');
+      if (textJoined.includes('الرصيد') && textJoined.includes('دائن')) {
+        const map = {};
+        let dateX = null, creditX = null, debitX = null, balanceX = null;
+        band.forEach(i => {
+          const t = i.text.trim();
+          if (t.includes('تاريخ') || t.includes('التاريخ')) dateX = i.x;
+          if (t === 'دائن' || t.includes('دائن')) creditX = i.x;
+          if (t === 'مدين' || t.includes('مدين')) debitX = i.x;
+          if (t === 'الرصيد' || t.includes('رصيد')) balanceX = i.x;
+        });
+        if (dateX !== null && creditX !== null) {
+          cols = { balance: balanceX, credit: creditX, debit: debitX || (creditX + 80), date: dateX };
+          break;
+        }
       }
     }
     if (!cols) cols = lastCols || DEFAULT_COLS;
     lastCols = cols;
-    const near = (x, center) => Math.abs(x - center) <= 45;
+    const near = (x, center) => Math.abs(x - center) <= 50;
 
-    // تصنيف كل "سطر" كمرساة (تاريخ+مبالغ) أو غير ذلك، مع معرفة إن كان السطر التالي مرساة
+    // --- تحسين مطابقة التاريخ (دعم DD/MM/YYYY) ---
     const flags = bands.map(band => {
-      const dateItem = band.find(i => near(i.x, cols.date) && /^\d{4}\/\d{2}\/\d{2}$/.test(i.text));
+      const dateItem = band.find(i => near(i.x, cols.date) && /^\d{2}[\/\-]\d{2}[\/\-]\d{4}$/.test(i.text.trim()));
       return { band, isAnchor: !!dateItem, dateItem };
     });
 
@@ -871,11 +881,11 @@ async function extractTransactionsFromPdf(file) {
     flags.forEach((f, idx) => {
       if (f.isAnchor) {
         const findAmount = (center) => {
-          const it = f.band.find(i => near(i.x, center) && /^[\d,]+\.\d{2}$/.test(i.text));
-          return it ? parseFloat(it.text.replace(/,/g, '')) : 0;
+          const it = f.band.find(i => near(i.x, center) && /[\d,]+\.\d{2}/.test(i.text));
+          if (!it) return 0;
+          return parseFloat(it.text.replace(/[^0-9.]/g, '')) || 0;
         };
         const credit = findAmount(cols.credit);
-        // نأخذ حصرياً من عمود "دائن" — أي عملية سحب (مدين فقط، دائن = 0) تُستبعد كلياً لأنها ليست حوالة عضو
         if (credit > 0) {
           currentTx = {
             id: 'r' + (rowIdCounter++),
@@ -888,7 +898,7 @@ async function extractTransactionsFromPdf(file) {
           };
           transactions.push(currentTx);
         } else {
-          currentTx = null; // تجاهل تفاصيل هذه العملية (سحب) تماماً
+          currentTx = null; 
         }
         pendingTypeText = '';
       } else {
@@ -896,7 +906,6 @@ async function extractTransactionsFromPdf(file) {
         const text = sorted.map(i => i.text).join(' ').replace(/\s+/g, ' ').trim();
         const nextIsAnchor = flags[idx + 1] && flags[idx + 1].isAnchor;
         if (nextIsAnchor) {
-          // هذا السطر هو سطر "نوع العملية" للحوالة القادمة، أياً كان نصه الفعلي
           pendingTypeText = text;
         } else if (currentTx) {
           const { arabicWords, latinWords } = wordsFromBandText(text);
@@ -913,8 +922,8 @@ async function extractTransactionsFromPdf(file) {
     return {
       id: t.id,
       date: t.date,
-      name: matched || '',                 // فارغ إن لم يوجد تطابق فريد — يختاره المشرف يدوياً
-      rawHint: t.arabicWords.join(' ') || t.latinWords.join(' '), // للعرض فقط كمساعدة للمشرف
+      name: matched || '',                 
+      rawHint: t.arabicWords.join(' ') || t.latinWords.join(' '), 
       type: t.type,
       amount: t.amount
     };
@@ -930,7 +939,7 @@ async function handleParsePdf() {
   try {
     reviewRows = await extractTransactionsFromPdf(fileInput.files[0]);
     if (reviewRows.length === 0) {
-      showAdminMsg('لم يتم التعرف تلقائياً على أي عملية داخل الملف. يمكنك إضافة الصفوف يدوياً أدناه.', 'error');
+      showAdminMsg('لم يتم التعرف تلقائياً على أي عملية داخل الملف. تأكد أن الملف هو كشف حساب الراجحي بصيغة PDF.', 'error');
     } else {
       const unmatched = reviewRows.filter(r => !r.name).length;
       const msg = unmatched
@@ -974,7 +983,7 @@ function renderReviewTable() {
   const tbody = document.getElementById('reviewBody');
   tbody.innerHTML = reviewRows.map(r => `
     <tr data-id="${r.id}">
-      <td><input type="text" class="f-date" value="${escapeHtml(r.date)}" placeholder="YYYY/MM/DD"></td>
+      <td><input type="text" class="f-date" value="${escapeHtml(r.date)}" placeholder="DD/MM/YYYY"></td>
       <td>
         <select class="f-name">${memberOptions(r.name)}</select>
         ${r.rawHint ? `<div class="admin-note" style="margin-top:3px;">${escapeHtml(r.rawHint)}</div>` : ''}
@@ -1008,7 +1017,7 @@ async function handleSubmitRows() {
   if (!reviewRows.length) return;
   const invalid = reviewRows.some(r => !r.date || !r.name || !r.amount);
   if (invalid) {
-    showAdminMsg('تأكد من اختيار العضو وتعبئة التاريخ والمبلغ لكل صف قبل الإرسال (الصفوف التي بلا اسم مختار لن تُقبل).', 'error');
+    showAdminMsg('تأكد من اختيار العضو وتعبئة التاريخ والمبلغ لكل صف قبل الإرسال.', 'error');
     return;
   }
 
@@ -1024,18 +1033,16 @@ async function handleSubmitRows() {
         date: r.date, name: r.name, type: r.type, amount: parseFloat(r.amount) || 0
       }))
     };
-    // ملاحظة: نرسل بدون تحديد Content-Type كـ application/json لتفادي CORS preflight
-    // مع Google Apps Script — السكربت يقرأ الجسم كنص ثم يحوّله JSON بنفسه.
     const resp = await fetch(TRANSFER_API_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await resp.json();
 
     if (result.success) {
-      let msg = `تم إضافة ${result.added} عملية بنجاح إلى سجل الحوالات.`;
-      if (result.skippedDuplicates) msg += ` تم تجاهل ${result.skippedDuplicates} عملية مكررة (نفس العضو ونفس التاريخ موجودان مسبقاً).`;
+      let msg = `تم إضافة ${result.added} عملية بنجاح.`;
+      if (result.skippedDuplicates) msg += ` تم تجاهل ${result.skippedDuplicates} عملية مكررة.`;
       showAdminMsg(msg, 'success');
       reviewRows = [];
       document.getElementById('reviewArea').innerHTML = '';
-      loadData(); // تحديث لوحة المعلومات المعروضة
+      if (typeof loadData === 'function') loadData();
     } else {
       showAdminMsg('فشل الإرسال: ' + (result.error || 'خطأ غير معروف'), 'error');
     }
@@ -1045,6 +1052,11 @@ async function handleSubmitRows() {
     if (submitBtn) submitBtn.disabled = false;
   }
 }
+
+// دالة مساعدة لتعقيم النصوص
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
 </script>
-</body>
-</html>
