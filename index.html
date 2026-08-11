@@ -649,11 +649,19 @@ if (window.pdfjsLib) {
 // نفس رابط سكربت Google Apps Script المستخدم لجلب البيانات (doGet) يُستخدم أيضاً لاستقبالها (doPost)
 const TRANSFER_API_URL = API_URL;
 
-// أنواع الحوالات المعروفة في كشوف الراجحي — عدّل/أضف حسب ما يظهر فعلياً في كشفك
+// أنواع الحوالات كما تظهر فعلياً في كشوفات الراجحي (مطابقة لنص الكشف تماماً)
 const TRANSFER_TYPES = [
-  "تحويل داخلي", "تحويل خارجي", "أمر مستديم", "حوالة فورية",
-  "تحويل عبر سريع", "ايداع نقدي", "إيداع نقدي", "تحويل من حساب آخر", "غير محدد"
+  "عملية تحويل داخلية", "أمر مستديم", "حوالات فورية واردة", "حوالة محلية واردة", "غير محدد"
 ];
+
+// نطاقات إحداثي X لأعمدة الجدول في كشف الراجحي (بالنقاط PDF) — الرصيد / دائن / مدين / التاريخ
+// إذا تغيّر قالب الكشف مستقبلاً وتوقف الفرز عن العمل، هذه أول قيم يجب مراجعتها
+const COLS = {
+  balance: [35, 115],
+  credit:  [135, 205],
+  debit:   [225, 290],
+  date:    [480, 545]
+};
 
 let adminKeyValue = "";      // يُحفظ في الذاكرة فقط لمدة الجلسة (لا يُخزَّن على الجهاز)
 let reviewRows = [];         // الصفوف المستخرجة/المعدّلة قبل الإرسال
@@ -710,67 +718,107 @@ function showAdminMsg(text, type) {
   el.innerHTML = `<div class="admin-msg ${type}">${escapeHtml(text)}</div>`;
 }
 
-/* ---------- 1) قراءة ملف PDF واستخراج نصه سطراً سطراً ---------- */
-async function extractPdfLines(file) {
+/* ---------- 1) إصلاح مشكلة انعكاس الأحرف العربية في طبقة نص كشف الراجحي ----------
+   كشوفات الراجحي (وملفات PDF عربية كثيرة) تخزّن الكلمات العربية بترتيب حروف معكوس
+   وبأشكال عرض خاصة (Presentation Forms) بدل الحروف العادية. الإصلاح: نعكس النص
+   بالكامل ثم نعيد عكس أجزاء اللاتيني/الأرقام فقط (لأنها انعكست خطأً أيضاً)، ثم نطبّع
+   الترميز (NFKC) لتحويل أشكال العرض إلى حروف عربية عادية قابلة للقراءة والبحث.       */
+function fixBidi(str) {
+  let rev = [...str].reverse().join('');
+  rev = rev.replace(/[A-Za-z0-9,\-.\/:*\s]+/g, m => [...m].reverse().join(''));
+  return rev.normalize('NFKC');
+}
+
+const ARABIC_LABEL_STOP = new Set(['الوقت', 'ملاحظة']);
+const LATIN_NOISE_STOP = new Set([
+  'SAR','FR','ACCT','FRACCT','SOTR','RIBLPEM','EHSAN','WA','SELAH','PEM',
+  'NCBK','SANCBK','SANCBKNCBK','SORT','PAYMENT','O','B','W'
+]);
+
+// يستخرج كلمات الاسم من نص "سطر" واحد (Band) بترتيب قراءة صحيح (عربي كما هو، لاتيني معكوس للوضع الطبيعي)
+function namePartsFromBandText(text) {
+  const arabicWords = (text.match(/[\u0600-\u06FF]+/g) || []).filter(w => !ARABIC_LABEL_STOP.has(w));
+  const latinWords = (text.match(/[A-Za-z]+/g) || [])
+    .filter(w => w.length >= 3 && !LATIN_NOISE_STOP.has(w.toUpperCase()));
+  return arabicWords.concat(latinWords.reverse()); // اللاتيني كان مرتباً يميناً-لليسار فنعيده لترتيبه الطبيعي
+}
+
+function inRange(x, range) { return x >= range[0] && x <= range[1]; }
+
+/* ---------- 2) قراءة ملف PDF وتحويله إلى عمليات (تاريخ / اسم / نوع / مبلغ) ---------- */
+async function extractTransactionsFromPdf(file) {
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-  const lines = [];
+  const transactions = [];
+  let currentType = 'غير محدد';
+  let currentTx = null;
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
 
-    // تجميع العناصر النصية في "أسطر" حسب إحداثي Y، ثم ترتيبها من اليمين لليسار (عربي)
-    const rows = {};
-    content.items.forEach(item => {
-      const y = Math.round(item.transform[5] / 3) * 3; // تجميع بتفاوت بسيط
-      (rows[y] = rows[y] || []).push(item);
+    const items = content.items.map(it => ({
+      x: it.transform[4],
+      y: it.transform[5],
+      text: fixBidi(it.str)
+    })).filter(it => it.text);
+
+    // ترتيب من أعلى الصفحة لأسفلها (Y أعلى = أعلى الصفحة في نظام إحداثيات PDF)
+    items.sort((a, b) => b.y - a.y);
+
+    // تجميع العناصر في "أسطر" (Bands) حسب تقارب Y
+    const bands = [];
+    let cur = [], lastY = null;
+    items.forEach(it => {
+      if (lastY === null || Math.abs(it.y - lastY) <= 2.5) {
+        cur.push(it);
+      } else {
+        bands.push(cur);
+        cur = [it];
+      }
+      lastY = it.y;
     });
-    Object.keys(rows)
-      .map(Number)
-      .sort((a, b) => b - a) // من أعلى الصفحة لأسفلها
-      .forEach(y => {
-        const lineText = rows[y]
-          .sort((a, b) => b.transform[4] - a.transform[4]) // يمين لليسار
-          .map(i => i.str)
-          .join(' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        if (lineText) lines.push(lineText);
-      });
+    if (cur.length) bands.push(cur);
+
+    bands.forEach(band => {
+      const sorted = [...band].sort((a, b) => b.x - a.x); // يمين لليسار للعرض
+      const text = sorted.map(i => i.text).join(' ').replace(/\s+/g, ' ').trim();
+
+      const dateItem = band.find(i => inRange(i.x, COLS.date) && /^\d{4}\/\d{2}\/\d{2}$/.test(i.text));
+
+      if (dateItem) {
+        // سطر "مرساة" يحوي التاريخ والمبالغ — يبدأ عملية جديدة
+        const findCol = (range) => {
+          const it = band.find(i => inRange(i.x, range) && /^[\d,]+\.\d{2}$/.test(i.text));
+          return it ? parseFloat(it.text.replace(/,/g, '')) : 0;
+        };
+        const credit = findCol(COLS.credit);
+        const debit = findCol(COLS.debit);
+        currentTx = {
+          id: 'r' + (rowIdCounter++),
+          date: dateItem.text,
+          type: currentType,
+          amount: (credit > 0 ? credit : debit).toFixed(2),
+          nameParts: []
+        };
+        transactions.push(currentTx);
+      } else if (TRANSFER_TYPES.some(t => t !== 'غير محدد' && (text === t || text.startsWith(t)))) {
+        // سطر نوع العملية — يُطبَّق على العملية التالية
+        currentType = TRANSFER_TYPES.find(t => t !== 'غير محدد' && (text === t || text.startsWith(t)));
+      } else if (currentTx) {
+        // سطر تفاصيل/ملاحظة — يحتمل أن يحوي جزءاً من اسم المُحوِّل
+        currentTx.nameParts.push(...namePartsFromBandText(text));
+      }
+    });
   }
-  return lines;
-}
 
-/* ---------- 2) تحليل الأسطر واستخراج كل عملية (تاريخ / اسم / نوع / مبلغ) ---------- */
-function parseStatementLines(lines) {
-  const dateRe = /(\d{2}[\/\-]\d{2}[\/\-]\d{4})/;
-  const amountRe = /([\d,]+\.\d{2})/g;
-  const results = [];
-
-  lines.forEach(line => {
-    const dateMatch = line.match(dateRe);
-    if (!dateMatch) return; // سطر لا يحتوي تاريخاً، على الأغلب ليس صف عملية
-
-    const amounts = [...line.matchAll(amountRe)].map(m => m[1].replace(/,/g, ''));
-    if (amounts.length === 0) return;
-
-    const type = TRANSFER_TYPES.find(t => t !== "غير محدد" && line.includes(t)) || "غير محدد";
-
-    let name = "";
-    const nameMatch = line.match(/(?:من|لصالح|المرسل)\s+([\u0621-\u064A\s]{3,40}?)(?:\s+(?:رقم|حساب|تحويل|بتاريخ|IBAN)|$)/);
-    if (nameMatch) name = nameMatch[1].trim();
-
-    results.push({
-      id: 'r' + (rowIdCounter++),
-      date: dateMatch[1],
-      name: name,
-      type: type,
-      amount: amounts[amounts.length - 1],
-      raw: line
-    });
-  });
-  return results;
+  return transactions.map(t => ({
+    id: t.id,
+    date: t.date,
+    name: t.nameParts.join(' ').trim(),
+    type: t.type,
+    amount: t.amount
+  }));
 }
 
 async function handleParsePdf() {
@@ -780,8 +828,7 @@ async function handleParsePdf() {
 
   showAdminMsg('جاري قراءة الملف...', '');
   try {
-    const lines = await extractPdfLines(fileInput.files[0]);
-    reviewRows = parseStatementLines(lines);
+    reviewRows = await extractTransactionsFromPdf(fileInput.files[0]);
     if (reviewRows.length === 0) {
       showAdminMsg('لم يتم التعرف تلقائياً على أي عملية داخل الملف. يمكنك إضافة الصفوف يدوياً أدناه.', 'error');
     } else {
