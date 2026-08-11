@@ -650,18 +650,88 @@ if (window.pdfjsLib) {
 const TRANSFER_API_URL = API_URL;
 
 // أنواع الحوالات كما تظهر فعلياً في كشوفات الراجحي (مطابقة لنص الكشف تماماً)
-const TRANSFER_TYPES = [
-  "عملية تحويل داخلية", "أمر مستديم", "حوالات فورية واردة", "حوالة محلية واردة", "غير محدد"
+// التصنيف مبسّط لفئتين فقط بناءً على طلب الإدارة
+const TRANSFER_TYPES = ["تحويل", "أمر مستديم"];
+
+// نطاقات إحداثي X الافتراضية (تُستخدم فقط إذا تعذّر اكتشاف صف العناوين تلقائياً في الملف)
+const DEFAULT_COLS = { balance: 75, credit: 167, debit: 255, date: 508 };
+
+// أعضاء الصندوق الـ27 بالضبط كما في ملف الإكسل (تبويب "ملخص الأعضاء") — الاسم الأول + اسم الأب فقط
+const MEMBERS = [
+  "عبدالله مطير", "مطير عبدالله", "سعود عبدالله", "محمد عبيدالله", "مساعد عبدالله",
+  "فواز عبيدالله", "فيصل عبدالله", "سعد عبدالله", "عبدالهادي عبدالله", "سلمان عبدالله",
+  "صلاح عبيدالله", "سلطان عبيدالله", "أحمد عبيدالله", "عبدالعزيز عبيدالله", "فهد عبدالله",
+  "عبدالمجيد عبيدالله", "رائد عبدالله", "ياسر عبيدالله", "ثامر عبدالله", "محمد عبدالله",
+  "فارس مطير", "مشعل عبدالله", "مشاري عبيدالله", "خالد عبدالله", "بندر عبدالله",
+  "عبدالرحمن عبدالله", "عبدالرحمن مطير"
 ];
 
-// نطاقات إحداثي X لأعمدة الجدول في كشف الراجحي (بالنقاط PDF) — الرصيد / دائن / مدين / التاريخ
-// إذا تغيّر قالب الكشف مستقبلاً وتوقف الفرز عن العمل، هذه أول قيم يجب مراجعتها
-const COLS = {
-  balance: [35, 115],
-  credit:  [135, 205],
-  debit:   [225, 290],
-  date:    [480, 545]
+// جدول تحويل الأسماء العربية إلى نظائرها اللاتينية الشائعة (لمطابقة "أمر مستديم" الذي يظهر بالإنجليزية فقط في الكشف)
+const TRANSLIT = {
+  "عبدالله": ["ABDULLAH","ABDALLAH","ABDULLA"],
+  "مطير": ["MUTAIR","MOTEER","MTEER","MUTEER","MOTAIR"],
+  "عبيدالله": ["OBAIDALLAH","OBEIDALLAH","ABIDALLAH","OBAYDALLAH"],
+  "سعود": ["SAUD","SAOUD","SAAOD","SAOD"],
+  "محمد": ["MOHAMMED","MOHAMMAD","MUHAMMAD","MOHAMED"],
+  "مساعد": ["MUSAAD","MASAAD","MSAAD","MUSAAED"],
+  "فواز": ["FAWAZ"],
+  "فيصل": ["FAISAL","FAYSAL"],
+  "سعد": ["SAAD","SAAED"],
+  "عبدالهادي": ["ABDULHADI","ABDALHADI"],
+  "سلمان": ["SALMAN"],
+  "صلاح": ["SALAH","SALAAH"],
+  "سلطان": ["SULTAN"],
+  "أحمد": ["AHMED","AHMAD"],
+  "عبدالعزيز": ["ABDULAZIZ","ABDULAZEEZ"],
+  "فهد": ["FAHAD","FAHD"],
+  "عبدالمجيد": ["ABDULMAJEED","ABDULMAJID"],
+  "رائد": ["RAED","RAAED","RAID"],
+  "ياسر": ["YASIR","YASSER","YASER"],
+  "ثامر": ["THAMER","THAMIR"],
+  "فارس": ["FARIS","FARES"],
+  "مشعل": ["MISHAAL","MASHAL","MISHAL","MESHAL"],
+  "مشاري": ["MISHARI","MASHARI"],
+  "خالد": ["KHALID","KHALED"],
+  "بندر": ["BANDAR","BANDER"],
+  "عبدالرحمن": ["ABDULRAHMAN","ABDELRAHMAN"]
 };
+
+function normArabic(s) {
+  return String(s).replace(/\s+/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه');
+}
+
+// مطابقة الاسم العربي المستخرج من الكشف (كلمة واحدة أو أكثر) مع أحد الأعضاء الـ27
+function matchMemberArabic(arabicWords) {
+  if (!arabicWords || !arabicWords.length) return null;
+  const joined = normArabic(arabicWords.join(''));
+  // الحالة العامة: اسم العضو الكامل يظهر في بداية النص المستخرج تحديداً (وليس في أي مكان منه —
+  // لتفادي تطابق زائف: "فارس مطير عبدالله العنزي" تحوي صدفةً "مطير عبدالله" كعضو مختلف في منتصفها)
+  let candidates = MEMBERS.filter(m => joined.indexOf(normArabic(m)) === 0);
+  if (candidates.length === 1) return candidates[0];
+  // حالة الاسم الأول فقط (كلمة واحدة) بدون اسم الأب — قاعدة: "ياسر" فقط تعني "ياسر عبيدالله"
+  if (arabicWords.length === 1) {
+    const w = normArabic(arabicWords[0]);
+    candidates = MEMBERS.filter(m => normArabic(m.split(' ')[0]) === w);
+    if (candidates.length === 1) return candidates[0];
+  }
+  return null; // لا يوجد تطابق فريد (أو التبس مع أكثر من عضو) — يُترك للمشرف ليختاره يدوياً
+}
+
+// مطابقة الاسم اللاتيني (حالة "أمر مستديم" حيث لا يظهر اسم عربي في الكشف إطلاقاً) عبر جدول التحويل الصوتي
+function matchMemberLatin(latinWords) {
+  if (!latinWords || latinWords.length < 2) return null;
+  const w1 = latinWords[0].toUpperCase(), w2 = latinWords[1].toUpperCase();
+  const candidates = MEMBERS.filter(m => {
+    const parts = m.split(' ');
+    const v1 = TRANSLIT[parts[0]] || [], v2 = TRANSLIT[parts[1]] || [];
+    return v1.indexOf(w1) !== -1 && v2.indexOf(w2) !== -1;
+  });
+  return candidates.length === 1 ? candidates[0] : null;
+}
+
+function matchMember(arabicWords, latinWords) {
+  return matchMemberArabic(arabicWords) || matchMemberLatin(latinWords);
+}
 
 let adminKeyValue = "";      // يُحفظ في الذاكرة فقط لمدة الجلسة (لا يُخزَّن على الجهاز)
 let reviewRows = [];         // الصفوف المستخرجة/المعدّلة قبل الإرسال
@@ -730,28 +800,24 @@ function fixBidi(str) {
 }
 
 const ARABIC_LABEL_STOP = new Set(['الوقت', 'ملاحظة']);
-const LATIN_NOISE_STOP = new Set([
-  'SAR','FR','ACCT','FRACCT','SOTR','RIBLPEM','EHSAN','WA','SELAH','PEM',
-  'NCBK','SANCBK','SANCBKNCBK','SORT','PAYMENT','O','B','W'
-]);
 
-// يستخرج كلمات الاسم من نص "سطر" واحد (Band) بترتيب قراءة صحيح (عربي كما هو، لاتيني معكوس للوضع الطبيعي)
-function namePartsFromBandText(text) {
+// يستخرج كلمات عربية ولاتينية من نص "سطر" واحد (Band) بترتيب قراءة صحيح
+function wordsFromBandText(text) {
   const arabicWords = (text.match(/[\u0600-\u06FF]+/g) || []).filter(w => !ARABIC_LABEL_STOP.has(w));
-  const latinWords = (text.match(/[A-Za-z]+/g) || [])
-    .filter(w => w.length >= 3 && !LATIN_NOISE_STOP.has(w.toUpperCase()));
-  return arabicWords.concat(latinWords.reverse()); // اللاتيني كان مرتباً يميناً-لليسار فنعيده لترتيبه الطبيعي
+  const latinWords = (text.match(/[A-Za-z]+/g) || []).filter(w => w.length >= 3);
+  return { arabicWords, latinWords: latinWords.reverse() }; // اللاتيني كان مرتباً يميناً-لليسار فنعيده لترتيبه الطبيعي
 }
 
-function inRange(x, range) { return x >= range[0] && x <= range[1]; }
+function classifyType(typeText) {
+  return /مستديم/.test(typeText || '') ? 'أمر مستديم' : 'تحويل';
+}
 
 /* ---------- 2) قراءة ملف PDF وتحويله إلى عمليات (تاريخ / اسم / نوع / مبلغ) ---------- */
 async function extractTransactionsFromPdf(file) {
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
   const transactions = [];
-  let currentType = 'غير محدد';
-  let currentTx = null;
+  let lastCols = null; // آخر إحداثيات أعمدة مكتشفة (تُحمل بين الصفحات إن لم تتكرر رؤوس الأعمدة)
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
@@ -763,10 +829,8 @@ async function extractTransactionsFromPdf(file) {
       text: fixBidi(it.str)
     })).filter(it => it.text);
 
-    // ترتيب من أعلى الصفحة لأسفلها (Y أعلى = أعلى الصفحة في نظام إحداثيات PDF)
-    items.sort((a, b) => b.y - a.y);
+    items.sort((a, b) => b.y - a.y); // من أعلى الصفحة لأسفلها
 
-    // تجميع العناصر في "أسطر" (Bands) حسب تقارب Y
     const bands = [];
     let cur = [], lastY = null;
     items.forEach(it => {
@@ -779,46 +843,82 @@ async function extractTransactionsFromPdf(file) {
       lastY = it.y;
     });
     if (cur.length) bands.push(cur);
+    if (!bands.length) continue;
 
-    bands.forEach(band => {
-      const sorted = [...band].sort((a, b) => b.x - a.x); // يمين لليسار للعرض
-      const text = sorted.map(i => i.text).join(' ').replace(/\s+/g, ' ').trim();
+    // اكتشاف ديناميكي لمواقع الأعمدة من صف العناوين الفعلي في هذه الصفحة (أدق من إحداثيات ثابتة)
+    let cols = null;
+    for (const band of bands) {
+      const map = {};
+      band.forEach(i => { map[i.text] = i.x; });
+      if (map['الرصيد'] !== undefined && map['دائن'] !== undefined && map['مدين'] !== undefined && map['التاريخ'] !== undefined) {
+        cols = { balance: map['الرصيد'], credit: map['دائن'], debit: map['مدين'], date: map['التاريخ'] };
+        break;
+      }
+    }
+    if (!cols) cols = lastCols || DEFAULT_COLS;
+    lastCols = cols;
+    const near = (x, center) => Math.abs(x - center) <= 45;
 
-      const dateItem = band.find(i => inRange(i.x, COLS.date) && /^\d{4}\/\d{2}\/\d{2}$/.test(i.text));
+    // تصنيف كل "سطر" كمرساة (تاريخ+مبالغ) أو غير ذلك، مع معرفة إن كان السطر التالي مرساة
+    const flags = bands.map(band => {
+      const dateItem = band.find(i => near(i.x, cols.date) && /^\d{4}\/\d{2}\/\d{2}$/.test(i.text));
+      return { band, isAnchor: !!dateItem, dateItem };
+    });
 
-      if (dateItem) {
-        // سطر "مرساة" يحوي التاريخ والمبالغ — يبدأ عملية جديدة
-        const findCol = (range) => {
-          const it = band.find(i => inRange(i.x, range) && /^[\d,]+\.\d{2}$/.test(i.text));
+    let currentTx = null;
+    let pendingTypeText = '';
+
+    flags.forEach((f, idx) => {
+      if (f.isAnchor) {
+        const findAmount = (center) => {
+          const it = f.band.find(i => near(i.x, center) && /^[\d,]+\.\d{2}$/.test(i.text));
           return it ? parseFloat(it.text.replace(/,/g, '')) : 0;
         };
-        const credit = findCol(COLS.credit);
-        const debit = findCol(COLS.debit);
-        currentTx = {
-          id: 'r' + (rowIdCounter++),
-          date: dateItem.text,
-          type: currentType,
-          amount: (credit > 0 ? credit : debit).toFixed(2),
-          nameParts: []
-        };
-        transactions.push(currentTx);
-      } else if (TRANSFER_TYPES.some(t => t !== 'غير محدد' && (text === t || text.startsWith(t)))) {
-        // سطر نوع العملية — يُطبَّق على العملية التالية
-        currentType = TRANSFER_TYPES.find(t => t !== 'غير محدد' && (text === t || text.startsWith(t)));
-      } else if (currentTx) {
-        // سطر تفاصيل/ملاحظة — يحتمل أن يحوي جزءاً من اسم المُحوِّل
-        currentTx.nameParts.push(...namePartsFromBandText(text));
+        const credit = findAmount(cols.credit);
+        // نأخذ حصرياً من عمود "دائن" — أي عملية سحب (مدين فقط، دائن = 0) تُستبعد كلياً لأنها ليست حوالة عضو
+        if (credit > 0) {
+          currentTx = {
+            id: 'r' + (rowIdCounter++),
+            date: f.dateItem.text,
+            type: classifyType(pendingTypeText),
+            amount: credit.toFixed(2),
+            arabicWords: [],
+            latinWords: [],
+            rawNote: ''
+          };
+          transactions.push(currentTx);
+        } else {
+          currentTx = null; // تجاهل تفاصيل هذه العملية (سحب) تماماً
+        }
+        pendingTypeText = '';
+      } else {
+        const sorted = [...f.band].sort((a, b) => b.x - a.x);
+        const text = sorted.map(i => i.text).join(' ').replace(/\s+/g, ' ').trim();
+        const nextIsAnchor = flags[idx + 1] && flags[idx + 1].isAnchor;
+        if (nextIsAnchor) {
+          // هذا السطر هو سطر "نوع العملية" للحوالة القادمة، أياً كان نصه الفعلي
+          pendingTypeText = text;
+        } else if (currentTx) {
+          const { arabicWords, latinWords } = wordsFromBandText(text);
+          currentTx.arabicWords.push(...arabicWords);
+          currentTx.latinWords = currentTx.latinWords.concat(latinWords);
+          currentTx.rawNote += ' ' + text;
+        }
       }
     });
   }
 
-  return transactions.map(t => ({
-    id: t.id,
-    date: t.date,
-    name: t.nameParts.join(' ').trim(),
-    type: t.type,
-    amount: t.amount
-  }));
+  return transactions.map(t => {
+    const matched = matchMember(t.arabicWords, t.latinWords);
+    return {
+      id: t.id,
+      date: t.date,
+      name: matched || '',                 // فارغ إن لم يوجد تطابق فريد — يختاره المشرف يدوياً
+      rawHint: t.arabicWords.join(' ') || t.latinWords.join(' '), // للعرض فقط كمساعدة للمشرف
+      type: t.type,
+      amount: t.amount
+    };
+  });
 }
 
 async function handleParsePdf() {
@@ -832,7 +932,11 @@ async function handleParsePdf() {
     if (reviewRows.length === 0) {
       showAdminMsg('لم يتم التعرف تلقائياً على أي عملية داخل الملف. يمكنك إضافة الصفوف يدوياً أدناه.', 'error');
     } else {
-      showAdminMsg(`تم استخراج ${reviewRows.length} عملية. راجع البيانات أدناه وعدّل ما يلزم قبل الإرسال.`, 'success');
+      const unmatched = reviewRows.filter(r => !r.name).length;
+      const msg = unmatched
+        ? `تم استخراج ${reviewRows.length} عملية (${unmatched} منها بحاجة لاختيار الاسم يدوياً). راجع البيانات أدناه قبل الإرسال.`
+        : `تم استخراج ${reviewRows.length} عملية وتمّت مطابقة كل الأسماء تلقائياً. راجع البيانات أدناه قبل الإرسال.`;
+      showAdminMsg(msg, 'success');
     }
     renderReviewTable();
   } catch (err) {
@@ -845,7 +949,9 @@ function renderReviewTable() {
   const area = document.getElementById('reviewArea');
   if (!reviewRows.length) { area.innerHTML = ''; return; }
 
-  const typeOptions = TRANSFER_TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
+  const memberOptions = (selected) => `<option value="">— اختر العضو —</option>` +
+    MEMBERS.map(m => `<option value="${m}" ${m === selected ? 'selected' : ''}>${m}</option>`).join('');
+  const typeOptionsHtml = (selected) => TRANSFER_TYPES.map(t => `<option value="${t}" ${t === selected ? 'selected' : ''}>${t}</option>`).join('');
 
   area.innerHTML = `
     <div class="review-table-wrap">
@@ -860,7 +966,7 @@ function renderReviewTable() {
     </div>
   `;
   document.getElementById('addRowBtn').addEventListener('click', () => {
-    reviewRows.push({ id: 'r' + (rowIdCounter++), date: '', name: '', type: 'غير محدد', amount: '' });
+    reviewRows.push({ id: 'r' + (rowIdCounter++), date: '', name: '', rawHint: '', type: 'تحويل', amount: '' });
     renderReviewTable();
   });
   document.getElementById('submitRowsBtn').addEventListener('click', handleSubmitRows);
@@ -869,8 +975,11 @@ function renderReviewTable() {
   tbody.innerHTML = reviewRows.map(r => `
     <tr data-id="${r.id}">
       <td><input type="text" class="f-date" value="${escapeHtml(r.date)}" placeholder="YYYY/MM/DD"></td>
-      <td><input type="text" class="f-name" value="${escapeHtml(r.name)}" placeholder="اسم العضو"></td>
-      <td><select class="f-type">${TRANSFER_TYPES.map(t => `<option value="${t}" ${t === r.type ? 'selected' : ''}>${t}</option>`).join('')}</select></td>
+      <td>
+        <select class="f-name">${memberOptions(r.name)}</select>
+        ${r.rawHint ? `<div class="admin-note" style="margin-top:3px;">${escapeHtml(r.rawHint)}</div>` : ''}
+      </td>
+      <td><select class="f-type">${typeOptionsHtml(r.type)}</select></td>
       <td><input type="text" class="f-amount" value="${escapeHtml(r.amount)}" placeholder="0.00"></td>
       <td><button class="review-row-del" title="حذف الصف">✕</button></td>
     </tr>
@@ -879,7 +988,7 @@ function renderReviewTable() {
   tbody.querySelectorAll('tr').forEach(tr => {
     const id = tr.getAttribute('data-id');
     tr.querySelector('.f-date').addEventListener('input', e => updateRow(id, 'date', e.target.value));
-    tr.querySelector('.f-name').addEventListener('input', e => updateRow(id, 'name', e.target.value));
+    tr.querySelector('.f-name').addEventListener('change', e => updateRow(id, 'name', e.target.value));
     tr.querySelector('.f-type').addEventListener('change', e => updateRow(id, 'type', e.target.value));
     tr.querySelector('.f-amount').addEventListener('input', e => updateRow(id, 'amount', e.target.value));
     tr.querySelector('.review-row-del').addEventListener('click', () => {
@@ -899,7 +1008,7 @@ async function handleSubmitRows() {
   if (!reviewRows.length) return;
   const invalid = reviewRows.some(r => !r.date || !r.name || !r.amount);
   if (invalid) {
-    showAdminMsg('تأكد من تعبئة التاريخ والاسم والمبلغ لكل صف قبل الإرسال.', 'error');
+    showAdminMsg('تأكد من اختيار العضو وتعبئة التاريخ والمبلغ لكل صف قبل الإرسال (الصفوف التي بلا اسم مختار لن تُقبل).', 'error');
     return;
   }
 
@@ -921,7 +1030,9 @@ async function handleSubmitRows() {
     const result = await resp.json();
 
     if (result.success) {
-      showAdminMsg(`تم إضافة ${result.added} عملية بنجاح إلى سجل الحوالات.`, 'success');
+      let msg = `تم إضافة ${result.added} عملية بنجاح إلى سجل الحوالات.`;
+      if (result.skippedDuplicates) msg += ` تم تجاهل ${result.skippedDuplicates} عملية مكررة (نفس العضو ونفس التاريخ موجودان مسبقاً).`;
+      showAdminMsg(msg, 'success');
       reviewRows = [];
       document.getElementById('reviewArea').innerHTML = '';
       loadData(); // تحديث لوحة المعلومات المعروضة
