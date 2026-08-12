@@ -704,8 +704,7 @@ function normArabic(s) {
 function matchMemberArabic(arabicWords) {
   if (!arabicWords || !arabicWords.length) return null;
   const joined = normArabic(arabicWords.join(''));
-  // الحالة العامة: اسم العضو الكامل يظهر في بداية النص المستخرج تحديداً (وليس في أي مكان منه —
-  // لتفادي تطابق زائف: "فارس مطير عبدالله العنزي" تحوي صدفةً "مطير عبدالله" كعضو مختلف في منتصفها)
+  // الحالة العامة: اسم العضو الكامل يظهر في بداية النص المستخرج تحديداً (وليس في أي مكان منه)
   let candidates = MEMBERS.filter(m => joined.indexOf(normArabic(m)) === 0);
   if (candidates.length === 1) return candidates[0];
   // حالة الاسم الأول فقط (كلمة واحدة) بدون اسم الأب — قاعدة: "ياسر" فقط تعني "ياسر عبيدالله"
@@ -714,26 +713,50 @@ function matchMemberArabic(arabicWords) {
     candidates = MEMBERS.filter(m => normArabic(m.split(' ')[0]) === w);
     if (candidates.length === 1) return candidates[0];
   }
-  return null; // لا يوجد تطابق فريد (أو التبس مع أكثر من عضو) — يُترك للمشرف ليختاره يدوياً
+  return null;
 }
 
-// مطابقة الاسم اللاتيني (حالة "أمر مستديم" حيث لا يظهر اسم عربي في الكشف إطلاقاً) عبر جدول التحويل الصوتي
+// مطابقة الاسم اللاتيني (حالة "أمر مستديم" أو الأسماء الإنجليزية) عبر جدول التحويل الصوتي مع تجاوز ألقاب العائلة في البداية
 function matchMemberLatin(latinWords) {
   if (!latinWords || latinWords.length < 2) return null;
-  const w1 = latinWords[0].toUpperCase(), w2 = latinWords[1].toUpperCase();
-  const candidates = MEMBERS.filter(m => {
+  
+  const upperLatin = latinWords.map(w => w.toUpperCase());
+  let matchedMembers = [];
+  
+  MEMBERS.forEach(m => {
     const parts = m.split(' ');
-    const v1 = TRANSLIT[parts[0]] || [], v2 = TRANSLIT[parts[1]] || [];
-    return v1.indexOf(w1) !== -1 && v2.indexOf(w2) !== -1;
+    if (parts.length >= 2) {
+      const v1 = TRANSLIT[parts[0]] || [];
+      const v2 = TRANSLIT[parts[1]] || [];
+      
+      // البحث عن تطابق الاسم الأول ثم اسم الأب في أي مكان بداخل الكلمات اللاتينية المستخرجة
+      let found = false;
+      for (let i = 0; i < upperLatin.length; i++) {
+        if (v1.includes(upperLatin[i])) {
+          for (let j = i + 1; j < upperLatin.length; j++) {
+            if (v2.includes(upperLatin[j])) {
+              found = true;
+              break;
+            }
+          }
+        }
+        if (found) break;
+      }
+      
+      if (found) {
+        matchedMembers.push(m);
+      }
+    }
   });
-  return candidates.length === 1 ? candidates[0] : null;
+  
+  return matchedMembers.length === 1 ? matchedMembers[0] : null;
 }
 
 function matchMember(arabicWords, latinWords) {
   return matchMemberArabic(arabicWords) || matchMemberLatin(latinWords);
 }
 
-let adminKeyValue = "";      // يُحفظ في الذاكرة فقط لمدة الجلسة (لا يُخزَّن على الجهاز)
+let adminKeyValue = "";      // يُحفظ في الذاكرة فقط لمدة الجلسة
 let reviewRows = [];         // الصفوف المستخرجة/المعدّلة قبل الإرسال
 let rowIdCounter = 0;
 
@@ -785,33 +808,26 @@ function closeAdminPanel() {
 function showAdminMsg(text, type) {
   const el = document.getElementById('adminMsg');
   if (!el) return;
-  el.innerHTML = `<div class="admin-msg ${type}">${text}</div>`;
+  el.innerHTML = `<div class="admin-msg <LaTex>{type}"></LaTex>{text}</div>`;
 }
 function showAdminMsgPlain(text, type) { showAdminMsg(escapeHtml(text), type); }
 
-/* ---------- 1) تطبيع الترميز (NFKC) ----------
-   ملاحظة مهمة: pdf.js (خلافاً لبعض أدوات استخراج النص الأخرى) يعطي النص العربي بترتيب
-   منطقي صحيح مباشرة من كشف الراجحي — لا حاجة لعكس الأحرف. نطبّق فقط تطبيع الترميز
-   (NFKC) كإجراء أمان لتحويل أي أشكال عرض خاصة (Presentation Forms) نادرة إلى حروف عادية،
-   دون أي عكس للنص.                                                                     */
 function fixBidi(str) {
   return str.normalize('NFKC');
 }
 
 const ARABIC_LABEL_STOP = new Set(['الوقت', 'ملاحظة']);
 
-// يستخرج كلمات عربية ولاتينية من نص "سطر" واحد (Band) بترتيب قراءة صحيح
 function wordsFromBandText(text) {
   const arabicWords = (text.match(/[\u0600-\u06FF]+/g) || []).filter(w => !ARABIC_LABEL_STOP.has(w));
   const latinWords = (text.match(/[A-Za-z]+/g) || []).filter(w => w.length >= 3);
-  return { arabicWords, latinWords: latinWords.reverse() }; // اللاتيني كان مرتباً يميناً-لليسار فنعيده لترتيبه الطبيعي
+  return { arabicWords, latinWords: latinWords.reverse() };
 }
 
 function classifyType(typeText) {
   return /مستديم/.test(typeText || '') ? 'أمر مستديم' : 'تحويل';
 }
 
-/* ---------- 2) قراءة ملف PDF وتحويله إلى عمليات (تاريخ / اسم / نوع / مبلغ) ---------- */
 async function extractTransactionsFromPdf(file) {
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
@@ -830,7 +846,7 @@ async function extractTransactionsFromPdf(file) {
       text: fixBidi(it.str).trim()
     })).filter(it => it.text);
 
-    items.sort((a, b) => b.y - a.y); // من أعلى الصفحة لأسفلها
+    items.sort((a, b) => b.y - a.y);
 
     const bands = [];
     let cur = [], lastY = null;
@@ -850,8 +866,6 @@ async function extractTransactionsFromPdf(file) {
     debug.perPage.push(pageDebug);
     if (!bands.length) continue;
 
-    // اكتشاف ديناميكي لمواقع الأعمدة من صف العناوين الفعلي في هذه الصفحة (أدق من إحداثيات ثابتة)
-    // نستخدم "يحتوي على" بدل التطابق التام لتحمّل أي مسافات أو رموز غير مرئية إضافية
     let cols = null;
     for (const band of bands) {
       const findLabel = (label) => band.find(i => i.text.indexOf(label) !== -1);
@@ -867,8 +881,6 @@ async function extractTransactionsFromPdf(file) {
     pageDebug.colsUsed = cols;
     const near = (x, center) => Math.abs(x - center) <= 45;
 
-    // تصنيف كل "سطر" كمرساة (تاريخ+مبالغ) أو غير ذلك، مع معرفة إن كان السطر التالي مرساة
-    // نبحث عن نمط التاريخ داخل النص (لا نشترط تطابقاً تاماً) لتحمّل أي التصاق بنص آخر
     const flags = bands.map(band => {
       const dateItem = band.find(i => near(i.x, cols.date) && /\d{4}\/\d{2}\/\d{2}/.test(i.text));
       const dateMatch = dateItem ? dateItem.text.match(/\d{4}\/\d{2}\/\d{2}/)[0] : null;
@@ -888,7 +900,6 @@ async function extractTransactionsFromPdf(file) {
           return m ? parseFloat(m[0].replace(/,/g, '')) : 0;
         };
         const credit = findAmount(cols.credit);
-        // نأخذ حصرياً من عمود "دائن" — أي عملية سحب (مدين فقط، دائن = 0) تُستبعد كلياً لأنها ليست حوالة عضو
         if (credit > 0) {
           currentTx = {
             id: 'r' + (rowIdCounter++),
@@ -901,7 +912,7 @@ async function extractTransactionsFromPdf(file) {
           };
           transactions.push(currentTx);
         } else {
-          currentTx = null; // تجاهل تفاصيل هذه العملية (سحب) تماماً
+          currentTx = null;
         }
         pendingTypeText = '';
       } else {
@@ -909,7 +920,6 @@ async function extractTransactionsFromPdf(file) {
         const text = sorted.map(i => i.text).join(' ').replace(/\s+/g, ' ').trim();
         const nextIsAnchor = flags[idx + 1] && flags[idx + 1].isAnchor;
         if (nextIsAnchor) {
-          // هذا السطر هو سطر "نوع العملية" للحوالة القادمة، أياً كان نصه الفعلي
           pendingTypeText = text;
         } else if (currentTx) {
           const { arabicWords, latinWords } = wordsFromBandText(text);
@@ -921,15 +931,15 @@ async function extractTransactionsFromPdf(file) {
     });
   }
 
-  lastExtractDebug = debug; // متاحة للعرض إن لم يُستخرج شيء (تشخيص بلا أدوات مطوّر)
+  lastExtractDebug = debug;
 
   return transactions.map(t => {
     const matched = matchMember(t.arabicWords, t.latinWords);
     return {
       id: t.id,
       date: t.date,
-      name: matched || '',                 // فارغ إن لم يوجد تطابق فريد — يختاره المشرف يدوياً
-      rawHint: t.arabicWords.join(' ') || t.latinWords.join(' '), // للعرض فقط كمساعدة للمشرف
+      name: matched || '',
+      rawHint: t.arabicWords.join(' ') || t.latinWords.join(' '),
       type: t.type,
       amount: t.amount
     };
@@ -940,8 +950,8 @@ let lastExtractDebug = null;
 
 async function handleParsePdf() {
   const fileInput = document.getElementById('pdfFileInput');
-  if (!adminKeyValue) { showAdminMsgPlain('الرجاء إدخال مفتاح المشرف أولاً.', 'error'); return; }
-  if (!fileInput.files.length) { showAdminMsgPlain('الرجاء اختيار ملف PDF.', 'error'); return; }
+  if (!adminKeyValue) { showAdminMsgPlain('يجب إدخال مفتاح المشرف أولاً.', 'error'); return; }
+  if (!fileInput.files.length) { showAdminMsgPlain('يرجى اختيار ملف PDF.', 'error'); return; }
 
   showAdminMsgPlain('جاري قراءة الملف...', '');
   try {
@@ -950,18 +960,14 @@ async function handleParsePdf() {
       const d = lastExtractDebug;
       let diag = 'لم يتم التعرف تلقائياً على أي عملية داخل الملف.<br><br><b>تشخيص:</b><br>';
       if (d) {
-        diag += `عدد الصفحات: ${d.pages}<br>`;
-        d.perPage.forEach(pg => {
-          diag += `صفحة ${pg.page}: عناصر خام=${pg.rawItems}، بعد الفلترة=${pg.keptItems}، أسطر=${pg.bands}، `
-                + `معايرة الأعمدة=${pg.calibrated ? 'نجحت' : 'فشلت (استُخدمت قيم افتراضية)'}، مرساة (تاريخ+مبلغ)=${pg.anchorsOnPage}<br>`;
-          diag += `عيّنة نص مستخرج: ${escapeHtml(pg.sampleItems.join(' | '))}<br><br>`;
+        diag += `عدد الصفحات: <LaTex>{d.pages}<br>`;         d.perPage.forEach(pg => {           diag += `صفحة</LaTex>{pg.page}: عناصر خام=<LaTex>{pg.rawItems}، بعد الفلترة=</LaTex>{pg.keptItems}، أسطر=<LaTex>{pg.bands}، `                 + `معايرة الأعمدة=</LaTex>{pg.calibrated ? 'نجحت' : 'فشلت (استُخدمت قيم افتراضية)'}، مرساة (تاريخ+مبلغ)=<LaTex>{pg.anchorsOnPage}<br>`;           diag += `عيّنة نص مستخرج:</LaTex>{escapeHtml(pg.sampleItems.join(' | '))}<br><br>`;
         });
       }
       showAdminMsg(diag, 'error');
     } else {
       const unmatched = reviewRows.filter(r => !r.name).length;
       const msg = unmatched
-        ? `تم استخراج ${reviewRows.length} عملية (${unmatched} منها بحاجة لاختيار الاسم يدوياً). راجع البيانات أدناه قبل الإرسال.`
+        ? `تم استخراج <LaTex>{reviewRows.length} عملية (</LaTex>{unmatched} منها بحاجة لاختيار الاسم يدوياً). راجع البيانات أدناه قبل الإرسال.`
         : `تم استخراج ${reviewRows.length} عملية وتمّت مطابقة كل الأسماء تلقائياً. راجع البيانات أدناه قبل الإرسال.`;
       showAdminMsgPlain(msg, 'success');
     }
@@ -971,14 +977,13 @@ async function handleParsePdf() {
   }
 }
 
-/* ---------- 3) جدول مراجعة قابل للتعديل قبل الإرسال ---------- */
 function renderReviewTable() {
   const area = document.getElementById('reviewArea');
   if (!reviewRows.length) { area.innerHTML = ''; return; }
 
   const memberOptions = (selected) => `<option value="">— اختر العضو —</option>` +
-    MEMBERS.map(m => `<option value="${m}" ${m === selected ? 'selected' : ''}>${m}</option>`).join('');
-  const typeOptionsHtml = (selected) => TRANSFER_TYPES.map(t => `<option value="${t}" ${t === selected ? 'selected' : ''}>${t}</option>`).join('');
+    MEMBERS.map(m => `<option value="${m}" <LaTex>{m === selected ? 'selected' : ''}></LaTex>{m}</option>`).join('');
+  const typeOptionsHtml = (selected) => TRANSFER_TYPES.map(t => `<option value="<LaTex>{t}"</LaTex>{t === selected ? 'selected' : ''}>${t}</option>`).join('');
 
   area.innerHTML = `
     <div class="review-table-wrap">
@@ -1001,13 +1006,10 @@ function renderReviewTable() {
   const tbody = document.getElementById('reviewBody');
   tbody.innerHTML = reviewRows.map(r => `
     <tr data-id="${r.id}">
-      <td><input type="text" class="f-date" value="${escapeHtml(r.date)}" placeholder="YYYY/MM/DD"></td>
-      <td>
-        <select class="f-name">${memberOptions(r.name)}</select>
-        ${r.rawHint ? `<div class="admin-note" style="margin-top:3px;">${escapeHtml(r.rawHint)}</div>` : ''}
+      <td><input type="text" class="f-date" value="<LaTex>{escapeHtml(r.date)}" placeholder="YYYY/MM/DD"></td>       <td>         <select class="f-name"></LaTex>{memberOptions(r.name)}</select>
+        <LaTex>{r.rawHint ? `<div class="admin-note" style="margin-top:3px;"></LaTex>{escapeHtml(r.rawHint)}</div>` : ''}
       </td>
-      <td><select class="f-type">${typeOptionsHtml(r.type)}</select></td>
-      <td><input type="text" class="f-amount" value="${escapeHtml(r.amount)}" placeholder="0.00"></td>
+      <td><select class="f-type"><LaTex>{typeOptionsHtml(r.type)}</select></td>       <td><input type="text" class="f-amount" value="</LaTex>{escapeHtml(r.amount)}" placeholder="0.00"></td>
       <td><button class="review-row-del" title="حذف الصف">✕</button></td>
     </tr>
   `).join('');
@@ -1030,12 +1032,11 @@ function updateRow(id, field, value) {
   if (row) row[field] = value;
 }
 
-/* ---------- 4) إرسال البيانات النهائية إلى Google Apps Script ---------- */
 async function handleSubmitRows() {
   if (!reviewRows.length) return;
   const invalid = reviewRows.some(r => !r.date || !r.name || !r.amount);
   if (invalid) {
-    showAdminMsgPlain('تأكد من اختيار العضو وتعبئة التاريخ والمبلغ لكل صف قبل الإرسال (الصفوف التي بلا اسم مختار لن تُقبل).', 'error');
+    showAdminMsgPlain('تأكد من اختيار العضو وتعبئة التاريخ والمبلغ لكل صف قبل الإرسال.', 'error');
     return;
   }
 
@@ -1051,18 +1052,15 @@ async function handleSubmitRows() {
         date: r.date, name: r.name, type: r.type, amount: parseFloat(r.amount) || 0
       }))
     };
-    // ملاحظة: نرسل بدون تحديد Content-Type كـ application/json لتفادي CORS preflight
-    // مع Google Apps Script — السكربت يقرأ الجسم كنص ثم يحوّله JSON بنفسه.
     const resp = await fetch(TRANSFER_API_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await resp.json();
 
     if (result.success) {
-      let msg = `تم إضافة ${result.added} عملية بنجاح إلى سجل الحوالات.`;
-      if (result.skippedDuplicates) msg += ` تم تجاهل ${result.skippedDuplicates} عملية مكررة (نفس العضو ونفس التاريخ موجودان مسبقاً).`;
+      let msg = `تم إضافة <LaTex>{result.added} عملية بنجاح.`;       if (result.skippedDuplicates) msg += ` تم تجاهل</LaTex>{result.skippedDuplicates} مكررة.`;
       showAdminMsgPlain(msg, 'success');
       reviewRows = [];
       document.getElementById('reviewArea').innerHTML = '';
-      loadData(); // تحديث لوحة المعلومات المعروضة
+      loadData();
     } else {
       showAdminMsgPlain('فشل الإرسال: ' + (result.error || 'خطأ غير معروف'), 'error');
     }
@@ -1072,6 +1070,10 @@ async function handleSubmitRows() {
     if (submitBtn) submitBtn.disabled = false;
   }
 }
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
 </script>
-</body>
-</html>
