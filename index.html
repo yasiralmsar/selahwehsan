@@ -817,12 +817,14 @@ async function extractTransactionsFromPdf(file) {
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
   const transactions = [];
-  let lastCols = null; // آخر إحداثيات أعمدة مكتشفة (تُحمل بين الصفحات إن لم تتكرر رؤوس الأعمدة)
+  let lastCols = null;
+  const debug = { pages: pdf.numPages, perPage: [] };
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
 
+    const rawCount = content.items.length;
     const items = content.items.map(it => ({
       x: it.transform[4],
       y: it.transform[5],
@@ -843,6 +845,10 @@ async function extractTransactionsFromPdf(file) {
       lastY = it.y;
     });
     if (cur.length) bands.push(cur);
+
+    const pageDebug = { page: p, rawItems: rawCount, keptItems: items.length, bands: bands.length,
+                         calibrated: false, anchorsOnPage: 0, sampleItems: items.slice(0, 15).map(i => i.text) };
+    debug.perPage.push(pageDebug);
     if (!bands.length) continue;
 
     // اكتشاف ديناميكي لمواقع الأعمدة من صف العناوين الفعلي في هذه الصفحة (أدق من إحداثيات ثابتة)
@@ -855,8 +861,10 @@ async function extractTransactionsFromPdf(file) {
         break;
       }
     }
+    if (cols) pageDebug.calibrated = true;
     if (!cols) cols = lastCols || DEFAULT_COLS;
     lastCols = cols;
+    pageDebug.colsUsed = cols;
     const near = (x, center) => Math.abs(x - center) <= 45;
 
     // تصنيف كل "سطر" كمرساة (تاريخ+مبالغ) أو غير ذلك، مع معرفة إن كان السطر التالي مرساة
@@ -864,6 +872,7 @@ async function extractTransactionsFromPdf(file) {
       const dateItem = band.find(i => near(i.x, cols.date) && /^\d{4}\/\d{2}\/\d{2}$/.test(i.text));
       return { band, isAnchor: !!dateItem, dateItem };
     });
+    pageDebug.anchorsOnPage = flags.filter(f => f.isAnchor).length;
 
     let currentTx = null;
     let pendingTypeText = '';
@@ -908,6 +917,8 @@ async function extractTransactionsFromPdf(file) {
     });
   }
 
+  lastExtractDebug = debug; // متاحة للعرض إن لم يُستخرج شيء (تشخيص بلا أدوات مطوّر)
+
   return transactions.map(t => {
     const matched = matchMember(t.arabicWords, t.latinWords);
     return {
@@ -921,6 +932,8 @@ async function extractTransactionsFromPdf(file) {
   });
 }
 
+let lastExtractDebug = null;
+
 async function handleParsePdf() {
   const fileInput = document.getElementById('pdfFileInput');
   if (!adminKeyValue) { showAdminMsg('الرجاء إدخال مفتاح المشرف أولاً.', 'error'); return; }
@@ -930,7 +943,17 @@ async function handleParsePdf() {
   try {
     reviewRows = await extractTransactionsFromPdf(fileInput.files[0]);
     if (reviewRows.length === 0) {
-      showAdminMsg('لم يتم التعرف تلقائياً على أي عملية داخل الملف. يمكنك إضافة الصفوف يدوياً أدناه.', 'error');
+      const d = lastExtractDebug;
+      let diag = 'لم يتم التعرف تلقائياً على أي عملية داخل الملف.<br><br><b>تشخيص:</b><br>';
+      if (d) {
+        diag += `عدد الصفحات: ${d.pages}<br>`;
+        d.perPage.forEach(pg => {
+          diag += `صفحة ${pg.page}: عناصر خام=${pg.rawItems}، بعد الفلترة=${pg.keptItems}، أسطر=${pg.bands}، `
+                + `معايرة الأعمدة=${pg.calibrated ? 'نجحت' : 'فشلت (استُخدمت قيم افتراضية)'}، مرساة (تاريخ+مبلغ)=${pg.anchorsOnPage}<br>`;
+          diag += `عيّنة نص مستخرج: ${escapeHtml(pg.sampleItems.join(' | '))}<br><br>`;
+        });
+      }
+      showAdminMsg(diag, 'error');
     } else {
       const unmatched = reviewRows.filter(r => !r.name).length;
       const msg = unmatched
