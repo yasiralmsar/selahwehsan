@@ -641,22 +641,28 @@ loadData();
    ثم إرساله إلى تبويب "سجل_الحوالات" في ملف الإكسل عبر Google Apps Script.
    ========================================================================= */
 
+// --- 1) إعدادات التشغيل والربط ---
+
+// التأكد من ربط الزر (الترس) بعد تحميل الصفحة لضمان عمله
+document.addEventListener('DOMContentLoaded', function() {
+  const triggerBtn = document.getElementById('adminTriggerBtn');
+  if (triggerBtn) {
+    triggerBtn.addEventListener('click', openAdminPanel);
+  }
+});
+
 if (window.pdfjsLib) {
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
 
-// نفس رابط سكربت Google Apps Script المستخدم لجلب البيانات (doGet) يُستخدم أيضاً لاستقبالها (doPost)
-const TRANSFER_API_URL = API_URL;
+// رابط الـ API (يتأكد من وجود المتغير العام أو يستخدم قيمة افتراضية لتجنب توقف الكود)
+const TRANSFER_API_URL = (typeof API_URL !== 'undefined') ? API_URL : '';
 
-// أنواع الحوالات كما تظهر فعلياً في كشوفات الراجحي (مطابقة لنص الكشف تماماً)
-// التصنيف مبسّط لفئتين فقط بناءً على طلب الإدارة
 const TRANSFER_TYPES = ["تحويل", "أمر مستديم"];
-
-// نطاقات إحداثي X الافتراضية (تُستخدم فقط إذا تعذّر اكتشاف صف العناوين تلقائياً في الملف)
 const DEFAULT_COLS = { balance: 75, credit: 167, debit: 255, date: 508 };
 
-// أعضاء الصندوق الـ27 بالضبط كما في ملف الإكسل (تبويب "ملخص الأعضاء") — الاسم الأول + اسم الأب فقط
+// أعضاء الصندوق الـ27
 const MEMBERS = [
   "عبدالله مطير", "مطير عبدالله", "سعود عبدالله", "محمد عبيدالله", "مساعد عبدالله",
   "فواز عبيدالله", "فيصل عبدالله", "سعد عبدالله", "عبدالهادي عبدالله", "سلمان عبدالله",
@@ -666,7 +672,7 @@ const MEMBERS = [
   "عبدالرحمن عبدالله", "عبدالرحمن مطير"
 ];
 
-// جدول تحويل الأسماء العربية إلى نظائرها اللاتينية الشائعة (لمطابقة "أمر مستديم" الذي يظهر بالإنجليزية فقط في الكشف)
+// جدول التحويل الصوتي للأسماء اللاتينية
 const TRANSLIT = {
   "عبدالله": ["ABDULLAH","ABDALLAH","ABDULLA"],
   "مطير": ["MUTAIR","MOTEER","MTEER","MUTEER","MOTAIR"],
@@ -696,18 +702,17 @@ const TRANSLIT = {
   "عبدالرحمن": ["ABDULRAHMAN","ABDELRAHMAN"]
 };
 
+// --- 2) دوال المطابقة والمنطق ---
+
 function normArabic(s) {
   return String(s).replace(/\s+/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه');
 }
 
-// مطابقة الاسم العربي المستخرج من الكشف (كلمة واحدة أو أكثر) مع أحد الأعضاء الـ27
 function matchMemberArabic(arabicWords) {
   if (!arabicWords || !arabicWords.length) return null;
   const joined = normArabic(arabicWords.join(''));
-  // الحالة العامة: اسم العضو الكامل يظهر في بداية النص المستخرج تحديداً (وليس في أي مكان منه)
   let candidates = MEMBERS.filter(m => joined.indexOf(normArabic(m)) === 0);
   if (candidates.length === 1) return candidates[0];
-  // حالة الاسم الأول فقط (كلمة واحدة) بدون اسم الأب — قاعدة: "ياسر" فقط تعني "ياسر عبيدالله"
   if (arabicWords.length === 1) {
     const w = normArabic(arabicWords[0]);
     candidates = MEMBERS.filter(m => normArabic(m.split(' ')[0]) === w);
@@ -716,10 +721,9 @@ function matchMemberArabic(arabicWords) {
   return null;
 }
 
-// مطابقة الاسم اللاتيني (حالة "أمر مستديم" أو الأسماء الإنجليزية) عبر جدول التحويل الصوتي مع تجاوز ألقاب العائلة في البداية
+// مطابقة الاسم اللاتيني مع تجاوز ألقاب العائلة (مثل ALENEZI / ALANAZI)
 function matchMemberLatin(latinWords) {
   if (!latinWords || latinWords.length < 2) return null;
-  
   const upperLatin = latinWords.map(w => w.toUpperCase());
   let matchedMembers = [];
   
@@ -728,8 +732,6 @@ function matchMemberLatin(latinWords) {
     if (parts.length >= 2) {
       const v1 = TRANSLIT[parts[0]] || [];
       const v2 = TRANSLIT[parts[1]] || [];
-      
-      // البحث عن تطابق الاسم الأول ثم اسم الأب في أي مكان بداخل الكلمات اللاتينية المستخرجة
       let found = false;
       for (let i = 0; i < upperLatin.length; i++) {
         if (v1.includes(upperLatin[i])) {
@@ -742,13 +744,9 @@ function matchMemberLatin(latinWords) {
         }
         if (found) break;
       }
-      
-      if (found) {
-        matchedMembers.push(m);
-      }
+      if (found) matchedMembers.push(m);
     }
   });
-  
   return matchedMembers.length === 1 ? matchedMembers[0] : null;
 }
 
@@ -756,35 +754,33 @@ function matchMember(arabicWords, latinWords) {
   return matchMemberArabic(arabicWords) || matchMemberLatin(latinWords);
 }
 
-let adminKeyValue = "";      // يُحفظ في الذاكرة فقط لمدة الجلسة
-let reviewRows = [];         // الصفوف المستخرجة/المعدّلة قبل الإرسال
-let rowIdCounter = 0;
+// --- 3) واجهة المستخدم (Admin Panel) ---
 
-document.getElementById('adminTriggerBtn').addEventListener('click', openAdminPanel);
+let adminKeyValue = "";
+let reviewRows = [];
+let rowIdCounter = 0;
+let lastExtractDebug = null;
 
 function openAdminPanel() {
   const mount = document.getElementById('adminMount');
+  if (!mount) return;
   mount.innerHTML = `
     <div class="admin-overlay" id="adminOverlay">
       <div class="admin-modal">
         <button class="admin-close" id="adminCloseBtn" aria-label="إغلاق">×</button>
         <h3>لوحة التحكم — رفع كشف حساب</h3>
-
         <div class="admin-field">
           <label>مفتاح المشرف (Admin Key)</label>
           <input type="password" id="adminKeyInput" placeholder="أدخل المفتاح السري" autocomplete="off">
         </div>
-
         <div class="admin-field">
           <label>ملف كشف الحساب (PDF)</label>
           <input type="file" id="pdfFileInput" accept="application/pdf">
-          <div class="admin-note">تتم قراءة الملف والتعرف على الحوالات داخل المتصفح فقط، ولا يُرفع ملف الـ PDF نفسه إلى أي خادم.</div>
+          <div class="admin-note">تتم قراءة الملف داخل المتصفح فقط، ولا يُرفع ملف الـ PDF إلى أي خادم.</div>
         </div>
-
         <div class="admin-actions">
           <button class="admin-btn" id="parsePdfBtn">استخراج الحوالات من الملف</button>
         </div>
-
         <div id="adminMsg"></div>
         <div id="reviewArea"></div>
       </div>
@@ -801,20 +797,26 @@ function openAdminPanel() {
 }
 
 function closeAdminPanel() {
-  document.getElementById('adminMount').innerHTML = '';
+  const mount = document.getElementById('adminMount');
+  if (mount) mount.innerHTML = '';
   reviewRows = [];
 }
 
 function showAdminMsg(text, type) {
   const el = document.getElementById('adminMsg');
-  if (!el) return;
-  el.innerHTML = `<div class="admin-msg <LaTex>{type}"></LaTex>{text}</div>`;
+  if (el) el.innerHTML = `<div class="admin-msg <LaTex>{type}"></LaTex>{text}</div>`;
 }
 function showAdminMsgPlain(text, type) { showAdminMsg(escapeHtml(text), type); }
 
-function fixBidi(str) {
-  return str.normalize('NFKC');
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
+
+// --- 4) معالجة الـ PDF واستخراج البيانات ---
+
+function fixBidi(str) { return str.normalize('NFKC'); }
 
 const ARABIC_LABEL_STOP = new Set(['الوقت', 'ملاحظة']);
 
@@ -838,33 +840,19 @@ async function extractTransactionsFromPdf(file) {
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
     const content = await page.getTextContent();
-
-    const rawCount = content.items.length;
     const items = content.items.map(it => ({
-      x: it.transform[4],
-      y: it.transform[5],
-      text: fixBidi(it.str).trim()
+      x: it.transform[4], y: it.transform[5], text: fixBidi(it.str).trim()
     })).filter(it => it.text);
 
     items.sort((a, b) => b.y - a.y);
-
     const bands = [];
     let cur = [], lastY = null;
     items.forEach(it => {
-      if (lastY === null || Math.abs(it.y - lastY) <= 2.5) {
-        cur.push(it);
-      } else {
-        bands.push(cur);
-        cur = [it];
-      }
+      if (lastY === null || Math.abs(it.y - lastY) <= 2.5) { cur.push(it); } 
+      else { bands.push(cur); cur = [it]; }
       lastY = it.y;
     });
     if (cur.length) bands.push(cur);
-
-    const pageDebug = { page: p, rawItems: rawCount, keptItems: items.length, bands: bands.length,
-                         calibrated: false, anchorsOnPage: 0, sampleItems: items.slice(0, 15).map(i => i.text) };
-    debug.perPage.push(pageDebug);
-    if (!bands.length) continue;
 
     let cols = null;
     for (const band of bands) {
@@ -875,10 +863,8 @@ async function extractTransactionsFromPdf(file) {
         break;
       }
     }
-    if (cols) pageDebug.calibrated = true;
     if (!cols) cols = lastCols || DEFAULT_COLS;
     lastCols = cols;
-    pageDebug.colsUsed = cols;
     const near = (x, center) => Math.abs(x - center) <= 45;
 
     const flags = bands.map(band => {
@@ -886,7 +872,6 @@ async function extractTransactionsFromPdf(file) {
       const dateMatch = dateItem ? dateItem.text.match(/\d{4}\/\d{2}\/\d{2}/)[0] : null;
       return { band, isAnchor: !!dateItem, dateText: dateMatch };
     });
-    pageDebug.anchorsOnPage = flags.filter(f => f.isAnchor).length;
 
     let currentTx = null;
     let pendingTypeText = '';
@@ -902,26 +887,17 @@ async function extractTransactionsFromPdf(file) {
         const credit = findAmount(cols.credit);
         if (credit > 0) {
           currentTx = {
-            id: 'r' + (rowIdCounter++),
-            date: f.dateText,
-            type: classifyType(pendingTypeText),
-            amount: credit.toFixed(2),
-            arabicWords: [],
-            latinWords: [],
-            rawNote: ''
+            id: 'r' + (rowIdCounter++), date: f.dateText, type: classifyType(pendingTypeText),
+            amount: credit.toFixed(2), arabicWords: [], latinWords: [], rawNote: ''
           };
           transactions.push(currentTx);
-        } else {
-          currentTx = null;
-        }
+        } else { currentTx = null; }
         pendingTypeText = '';
       } else {
         const sorted = [...f.band].sort((a, b) => b.x - a.x);
         const text = sorted.map(i => i.text).join(' ').replace(/\s+/g, ' ').trim();
-        const nextIsAnchor = flags[idx + 1] && flags[idx + 1].isAnchor;
-        if (nextIsAnchor) {
-          pendingTypeText = text;
-        } else if (currentTx) {
+        if (flags[idx + 1] && flags[idx + 1].isAnchor) { pendingTypeText = text; } 
+        else if (currentTx) {
           const { arabicWords, latinWords } = wordsFromBandText(text);
           currentTx.arabicWords.push(...arabicWords);
           currentTx.latinWords = currentTx.latinWords.concat(latinWords);
@@ -930,46 +906,29 @@ async function extractTransactionsFromPdf(file) {
       }
     });
   }
-
-  lastExtractDebug = debug;
-
   return transactions.map(t => {
     const matched = matchMember(t.arabicWords, t.latinWords);
     return {
-      id: t.id,
-      date: t.date,
-      name: matched || '',
+      id: t.id, date: t.date, name: matched || '',
       rawHint: t.arabicWords.join(' ') || t.latinWords.join(' '),
-      type: t.type,
-      amount: t.amount
+      type: t.type, amount: t.amount
     };
   });
 }
 
-let lastExtractDebug = null;
-
 async function handleParsePdf() {
   const fileInput = document.getElementById('pdfFileInput');
   if (!adminKeyValue) { showAdminMsgPlain('يجب إدخال مفتاح المشرف أولاً.', 'error'); return; }
-  if (!fileInput.files.length) { showAdminMsgPlain('يرجى اختيار ملف PDF.', 'error'); return; }
+  if (!fileInput || !fileInput.files.length) { showAdminMsgPlain('يرجى اختيار ملف PDF.', 'error'); return; }
 
   showAdminMsgPlain('جاري قراءة الملف...', '');
   try {
     reviewRows = await extractTransactionsFromPdf(fileInput.files[0]);
     if (reviewRows.length === 0) {
-      const d = lastExtractDebug;
-      let diag = 'لم يتم التعرف تلقائياً على أي عملية داخل الملف.<br><br><b>تشخيص:</b><br>';
-      if (d) {
-        diag += `عدد الصفحات: <LaTex>{d.pages}<br>`;         d.perPage.forEach(pg => {           diag += `صفحة</LaTex>{pg.page}: عناصر خام=<LaTex>{pg.rawItems}، بعد الفلترة=</LaTex>{pg.keptItems}، أسطر=<LaTex>{pg.bands}، `                 + `معايرة الأعمدة=</LaTex>{pg.calibrated ? 'نجحت' : 'فشلت (استُخدمت قيم افتراضية)'}، مرساة (تاريخ+مبلغ)=<LaTex>{pg.anchorsOnPage}<br>`;           diag += `عيّنة نص مستخرج:</LaTex>{escapeHtml(pg.sampleItems.join(' | '))}<br><br>`;
-        });
-      }
-      showAdminMsg(diag, 'error');
+      showAdminMsgPlain('لم يتم التعرف على أي عمليات دائنة في الملف.', 'error');
     } else {
       const unmatched = reviewRows.filter(r => !r.name).length;
-      const msg = unmatched
-        ? `تم استخراج <LaTex>{reviewRows.length} عملية (</LaTex>{unmatched} منها بحاجة لاختيار الاسم يدوياً). راجع البيانات أدناه قبل الإرسال.`
-        : `تم استخراج ${reviewRows.length} عملية وتمّت مطابقة كل الأسماء تلقائياً. راجع البيانات أدناه قبل الإرسال.`;
-      showAdminMsgPlain(msg, 'success');
+      showAdminMsgPlain(`تم استخراج <LaTex>{reviewRows.length} عملية (</LaTex>{unmatched} بحاجة لاختيار يدوي).`, 'success');
     }
     renderReviewTable();
   } catch (err) {
@@ -977,13 +936,14 @@ async function handleParsePdf() {
   }
 }
 
+// --- 5) جدول المراجعة والإرسال ---
+
 function renderReviewTable() {
   const area = document.getElementById('reviewArea');
   if (!reviewRows.length) { area.innerHTML = ''; return; }
 
   const memberOptions = (selected) => `<option value="">— اختر العضو —</option>` +
-    MEMBERS.map(m => `<option value="${m}" <LaTex>{m === selected ? 'selected' : ''}></LaTex>{m}</option>`).join('');
-  const typeOptionsHtml = (selected) => TRANSFER_TYPES.map(t => `<option value="<LaTex>{t}"</LaTex>{t === selected ? 'selected' : ''}>${t}</option>`).join('');
+    MEMBERS.map(m => `<option value="<LaTex>{m}"</LaTex>{m === selected ? 'selected' : ''}><LaTex>{m}</option>`).join('');   const typeOptionsHtml = (selected) => TRANSFER_TYPES.map(t => `<option value="</LaTex>{t}" <LaTex>{t === selected ? 'selected' : ''}></LaTex>{t}</option>`).join('');
 
   area.innerHTML = `
     <div class="review-table-wrap">
@@ -1005,11 +965,10 @@ function renderReviewTable() {
 
   const tbody = document.getElementById('reviewBody');
   tbody.innerHTML = reviewRows.map(r => `
-    <tr data-id="${r.id}">
-      <td><input type="text" class="f-date" value="<LaTex>{escapeHtml(r.date)}" placeholder="YYYY/MM/DD"></td>       <td>         <select class="f-name"></LaTex>{memberOptions(r.name)}</select>
-        <LaTex>{r.rawHint ? `<div class="admin-note" style="margin-top:3px;"></LaTex>{escapeHtml(r.rawHint)}</div>` : ''}
-      </td>
-      <td><select class="f-type"><LaTex>{typeOptionsHtml(r.type)}</select></td>       <td><input type="text" class="f-amount" value="</LaTex>{escapeHtml(r.amount)}" placeholder="0.00"></td>
+    <tr data-id="<LaTex>{r.id}">       <td><input type="text" class="f-date" value="</LaTex>{escapeHtml(r.date)}" placeholder="YYYY/MM/DD"></td>
+      <td>
+        <select class="f-name"><LaTex>{memberOptions(r.name)}</select></LaTex>{r.rawHint ? `<div class="admin-note" style="margin-top:3px;"><LaTex>{escapeHtml(r.rawHint)}</div>` : ''}       </td>       <td><select class="f-type"></LaTex>{typeOptionsHtml(r.type)}</select></td>
+      <td><input type="text" class="f-amount" value="${escapeHtml(r.amount)}" placeholder="0.00"></td>
       <td><button class="review-row-del" title="حذف الصف">✕</button></td>
     </tr>
   `).join('');
@@ -1036,10 +995,9 @@ async function handleSubmitRows() {
   if (!reviewRows.length) return;
   const invalid = reviewRows.some(r => !r.date || !r.name || !r.amount);
   if (invalid) {
-    showAdminMsgPlain('تأكد من اختيار العضو وتعبئة التاريخ والمبلغ لكل صف قبل الإرسال.', 'error');
+    showAdminMsgPlain('تأكد من اختيار العضو وتعبئة كافة الحقول.', 'error');
     return;
   }
-
   showAdminMsgPlain('جاري الإرسال...', '');
   const submitBtn = document.getElementById('submitRowsBtn');
   if (submitBtn) submitBtn.disabled = true;
@@ -1054,13 +1012,11 @@ async function handleSubmitRows() {
     };
     const resp = await fetch(TRANSFER_API_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await resp.json();
-
     if (result.success) {
-      let msg = `تم إضافة <LaTex>{result.added} عملية بنجاح.`;       if (result.skippedDuplicates) msg += ` تم تجاهل</LaTex>{result.skippedDuplicates} مكررة.`;
-      showAdminMsgPlain(msg, 'success');
+      showAdminMsgPlain(`تم إضافة ${result.added} عملية بنجاح.`, 'success');
       reviewRows = [];
       document.getElementById('reviewArea').innerHTML = '';
-      loadData();
+      if (typeof loadData === 'function') loadData();
     } else {
       showAdminMsgPlain('فشل الإرسال: ' + (result.error || 'خطأ غير معروف'), 'error');
     }
@@ -1069,11 +1025,5 @@ async function handleSubmitRows() {
   } finally {
     if (submitBtn) submitBtn.disabled = false;
   }
-}
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
 }
 </script>
