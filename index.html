@@ -646,17 +646,12 @@ if (window.pdfjsLib) {
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
 
-// نفس رابط سكربت Google Apps Script المستخدم لجلب البيانات (doGet) يُستخدم أيضاً لاستقبالها (doPost)
 const TRANSFER_API_URL = API_URL;
 
-// أنواع الحوالات كما تظهر فعلياً في كشوفات الراجحي (مطابقة لنص الكشف تماماً)
-// التصنيف مبسّط لفئتين فقط بناءً على طلب الإدارة
 const TRANSFER_TYPES = ["تحويل", "أمر مستديم"];
 
-// نطاقات إحداثي X الافتراضية (تُستخدم فقط إذا تعذّر اكتشاف صف العناوين تلقائياً في الملف)
 const DEFAULT_COLS = { balance: 75, credit: 167, debit: 255, date: 508 };
 
-// أعضاء الصندوق الـ27 بالضبط كما في ملف الإكسل (تبويب "ملخص الأعضاء") — الاسم الأول + اسم الأب فقط
 const MEMBERS = [
   "عبدالله مطير", "مطير عبدالله", "سعود عبدالله", "محمد عبيدالله", "مساعد عبدالله",
   "فواز عبيدالله", "فيصل عبدالله", "سعد عبدالله", "عبدالهادي عبدالله", "سلمان عبدالله",
@@ -666,7 +661,6 @@ const MEMBERS = [
   "عبدالرحمن عبدالله", "عبدالرحمن مطير"
 ];
 
-// جدول تحويل الأسماء العربية إلى نظائرها اللاتينية الشائعة (لمطابقة "أمر مستديم" الذي يظهر بالإنجليزية فقط في الكشف)
 const TRANSLIT = {
   "عبدالله": ["ABDULLAH","ABDALLAH","ABDULLA"],
   "مطير": ["MUTAIR","MOTEER","MTEER","MUTEER","MOTAIR"],
@@ -700,7 +694,6 @@ function normArabic(s) {
   return String(s).replace(/\s+/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه');
 }
 
-// مطابقة الاسم العربي المستخرج من الكشف (كلمة واحدة أو أكثر) مع أحد الأعضاء الـ27
 function matchMemberArabic(arabicWords) {
   if (!arabicWords || !arabicWords.length) return null;
   const joined = normArabic(arabicWords.join(''));
@@ -714,21 +707,29 @@ function matchMemberArabic(arabicWords) {
   return null;
 }
 
-// مطابقة الاسم اللاتيني (حالة "أمر مستديم" حيث لا يظهر اسم عربي في الكشف إطلاقاً) عبر جدول التحويل الصوتي
+// مطابقة الاسم اللاتيني مع عكس الترتيب تلقائياً لضمان قراءة الاسم بشكل صحيح بغض النظر عن اتجاه السطر
 function matchMemberLatin(latinWords) {
   if (!latinWords || latinWords.length < 2) return null;
-  // البحث في الترتيب العكسي أو الأمامي للكلمات اللاتينية لضمان مطابقة الاسم الأول والأب بغض النظر عن اتجاه القراءة
-  for (let i = 0; i < latinWords.length - 1; i++) {
-    const w1 = latinWords[i].toUpperCase();
-    for (let j = i + 1; j < latinWords.length; j++) {
-      const w2 = latinWords[j].toUpperCase();
-      const candidates = MEMBERS.filter(m => {
-        const parts = m.split(' ');
-        const v1 = TRANSLIT[parts[0]] || [], v2 = TRANSLIT[parts[1]] || [];
-        return (v1.indexOf(w1) !== -1 && v2.indexOf(w2) !== -1) ||
-               (v1.indexOf(w2) !== -1 && v2.indexOf(w1) !== -1);
-      });
-      if (candidates.length === 1) return candidates[0];
+  
+  // تجربة الترتيب الطبيعي وكذلك الترتيب المعكوس للكلمات الإنجليزية
+  const possibleOrders = [
+    latinWords,
+    [...latinWords].reverse()
+  ];
+
+  for (const words of possibleOrders) {
+    for (let i = 0; i < words.length - 1; i++) {
+      const w1 = words[i].toUpperCase();
+      for (let j = i + 1; j < words.length; j++) {
+        const w2 = words[j].toUpperCase();
+        const candidates = MEMBERS.filter(m => {
+          const parts = m.split(' ');
+          const v1 = TRANSLIT[parts[0]] || [], v2 = TRANSLIT[parts[1]] || [];
+          return (v1.indexOf(w1) !== -1 && v2.indexOf(w2) !== -1) ||
+                 (v1.indexOf(w2) !== -1 && v2.indexOf(w1) !== -1);
+        });
+        if (candidates.length === 1) return candidates[0];
+      }
     }
   }
   return null;
@@ -800,15 +801,14 @@ function fixBidi(str) {
 
 const ARABIC_LABEL_STOP = new Set(['الوقت', 'ملاحظة']);
 
-/* تعديل استخراج الكلمات بناءً على إحداثيات X لضمان الترتيب الصحيح للإنجليزية (من اليسار لليمين) */
-function extractWordsFromBand(bandItems) {
-  // فرز العناصر في السطر حسب إحداثي X تصاعدياً (من اليسار إلى اليمين)
-  const sortedItems = [...bandItems].sort((a, b) => a.x - b.x);
+// استخراج وترتيب الكلمات الإنجليزية بناءً على إحداثي X الحقيقي من اليسار لليمين
+function wordsFromBandText(bandItems) {
+  const sortedByX = [...bandItems].sort((a, b) => a.x - b.x);
   
-  let arabicWords = [];
-  let latinWords = [];
+  const arabicWords = [];
+  const latinWords = [];
 
-  sortedItems.forEach(item => {
+  sortedByX.forEach(item => {
     const text = item.text;
     const arMatches = (text.match(/[\u0600-\u06FF]+/g) || []).filter(w => !ARABIC_LABEL_STOP.has(w));
     const enMatches = (text.match(/[A-Za-z]+/g) || []).filter(w => w.length >= 3);
@@ -918,7 +918,7 @@ async function extractTransactionsFromPdf(file) {
         if (nextIsAnchor) {
           pendingTypeText = text;
         } else if (currentTx) {
-          const { arabicWords, latinWords } = extractWordsFromBand(f.band);
+          const { arabicWords, latinWords } = wordsFromBandText(f.band);
           currentTx.arabicWords.push(...arabicWords);
           currentTx.latinWords.push(...latinWords);
           currentTx.rawNote += ' ' + text;
