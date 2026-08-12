@@ -785,18 +785,17 @@ function closeAdminPanel() {
 function showAdminMsg(text, type) {
   const el = document.getElementById('adminMsg');
   if (!el) return;
-  el.innerHTML = `<div class="admin-msg ${type}">${escapeHtml(text)}</div>`;
+  el.innerHTML = `<div class="admin-msg ${type}">${text}</div>`;
 }
+function showAdminMsgPlain(text, type) { showAdminMsg(escapeHtml(text), type); }
 
-/* ---------- 1) إصلاح مشكلة انعكاس الأحرف العربية في طبقة نص كشف الراجحي ----------
-   كشوفات الراجحي (وملفات PDF عربية كثيرة) تخزّن الكلمات العربية بترتيب حروف معكوس
-   وبأشكال عرض خاصة (Presentation Forms) بدل الحروف العادية. الإصلاح: نعكس النص
-   بالكامل ثم نعيد عكس أجزاء اللاتيني/الأرقام فقط (لأنها انعكست خطأً أيضاً)، ثم نطبّع
-   الترميز (NFKC) لتحويل أشكال العرض إلى حروف عربية عادية قابلة للقراءة والبحث.       */
+/* ---------- 1) تطبيع الترميز (NFKC) ----------
+   ملاحظة مهمة: pdf.js (خلافاً لبعض أدوات استخراج النص الأخرى) يعطي النص العربي بترتيب
+   منطقي صحيح مباشرة من كشف الراجحي — لا حاجة لعكس الأحرف. نطبّق فقط تطبيع الترميز
+   (NFKC) كإجراء أمان لتحويل أي أشكال عرض خاصة (Presentation Forms) نادرة إلى حروف عادية،
+   دون أي عكس للنص.                                                                     */
 function fixBidi(str) {
-  let rev = [...str].reverse().join('');
-  rev = rev.replace(/[A-Za-z0-9,\-.\/:*\s]+/g, m => [...m].reverse().join(''));
-  return rev.normalize('NFKC');
+  return str.normalize('NFKC');
 }
 
 const ARABIC_LABEL_STOP = new Set(['الوقت', 'ملاحظة']);
@@ -828,7 +827,7 @@ async function extractTransactionsFromPdf(file) {
     const items = content.items.map(it => ({
       x: it.transform[4],
       y: it.transform[5],
-      text: fixBidi(it.str)
+      text: fixBidi(it.str).trim()
     })).filter(it => it.text);
 
     items.sort((a, b) => b.y - a.y); // من أعلى الصفحة لأسفلها
@@ -852,12 +851,13 @@ async function extractTransactionsFromPdf(file) {
     if (!bands.length) continue;
 
     // اكتشاف ديناميكي لمواقع الأعمدة من صف العناوين الفعلي في هذه الصفحة (أدق من إحداثيات ثابتة)
+    // نستخدم "يحتوي على" بدل التطابق التام لتحمّل أي مسافات أو رموز غير مرئية إضافية
     let cols = null;
     for (const band of bands) {
-      const map = {};
-      band.forEach(i => { map[i.text] = i.x; });
-      if (map['الرصيد'] !== undefined && map['دائن'] !== undefined && map['مدين'] !== undefined && map['التاريخ'] !== undefined) {
-        cols = { balance: map['الرصيد'], credit: map['دائن'], debit: map['مدين'], date: map['التاريخ'] };
+      const findLabel = (label) => band.find(i => i.text.indexOf(label) !== -1);
+      const bal = findLabel('الرصيد'), cr = findLabel('دائن'), db = findLabel('مدين'), dt = findLabel('التاريخ');
+      if (bal && cr && db && dt) {
+        cols = { balance: bal.x, credit: cr.x, debit: db.x, date: dt.x };
         break;
       }
     }
@@ -868,9 +868,11 @@ async function extractTransactionsFromPdf(file) {
     const near = (x, center) => Math.abs(x - center) <= 45;
 
     // تصنيف كل "سطر" كمرساة (تاريخ+مبالغ) أو غير ذلك، مع معرفة إن كان السطر التالي مرساة
+    // نبحث عن نمط التاريخ داخل النص (لا نشترط تطابقاً تاماً) لتحمّل أي التصاق بنص آخر
     const flags = bands.map(band => {
-      const dateItem = band.find(i => near(i.x, cols.date) && /^\d{4}\/\d{2}\/\d{2}$/.test(i.text));
-      return { band, isAnchor: !!dateItem, dateItem };
+      const dateItem = band.find(i => near(i.x, cols.date) && /\d{4}\/\d{2}\/\d{2}/.test(i.text));
+      const dateMatch = dateItem ? dateItem.text.match(/\d{4}\/\d{2}\/\d{2}/)[0] : null;
+      return { band, isAnchor: !!dateItem, dateText: dateMatch };
     });
     pageDebug.anchorsOnPage = flags.filter(f => f.isAnchor).length;
 
@@ -880,15 +882,17 @@ async function extractTransactionsFromPdf(file) {
     flags.forEach((f, idx) => {
       if (f.isAnchor) {
         const findAmount = (center) => {
-          const it = f.band.find(i => near(i.x, center) && /^[\d,]+\.\d{2}$/.test(i.text));
-          return it ? parseFloat(it.text.replace(/,/g, '')) : 0;
+          const it = f.band.find(i => near(i.x, center) && /[\d,]+\.\d{2}/.test(i.text));
+          if (!it) return 0;
+          const m = it.text.match(/[\d,]+\.\d{2}/);
+          return m ? parseFloat(m[0].replace(/,/g, '')) : 0;
         };
         const credit = findAmount(cols.credit);
         // نأخذ حصرياً من عمود "دائن" — أي عملية سحب (مدين فقط، دائن = 0) تُستبعد كلياً لأنها ليست حوالة عضو
         if (credit > 0) {
           currentTx = {
             id: 'r' + (rowIdCounter++),
-            date: f.dateItem.text,
+            date: f.dateText,
             type: classifyType(pendingTypeText),
             amount: credit.toFixed(2),
             arabicWords: [],
@@ -936,10 +940,10 @@ let lastExtractDebug = null;
 
 async function handleParsePdf() {
   const fileInput = document.getElementById('pdfFileInput');
-  if (!adminKeyValue) { showAdminMsg('الرجاء إدخال مفتاح المشرف أولاً.', 'error'); return; }
-  if (!fileInput.files.length) { showAdminMsg('الرجاء اختيار ملف PDF.', 'error'); return; }
+  if (!adminKeyValue) { showAdminMsgPlain('الرجاء إدخال مفتاح المشرف أولاً.', 'error'); return; }
+  if (!fileInput.files.length) { showAdminMsgPlain('الرجاء اختيار ملف PDF.', 'error'); return; }
 
-  showAdminMsg('جاري قراءة الملف...', '');
+  showAdminMsgPlain('جاري قراءة الملف...', '');
   try {
     reviewRows = await extractTransactionsFromPdf(fileInput.files[0]);
     if (reviewRows.length === 0) {
@@ -959,11 +963,11 @@ async function handleParsePdf() {
       const msg = unmatched
         ? `تم استخراج ${reviewRows.length} عملية (${unmatched} منها بحاجة لاختيار الاسم يدوياً). راجع البيانات أدناه قبل الإرسال.`
         : `تم استخراج ${reviewRows.length} عملية وتمّت مطابقة كل الأسماء تلقائياً. راجع البيانات أدناه قبل الإرسال.`;
-      showAdminMsg(msg, 'success');
+      showAdminMsgPlain(msg, 'success');
     }
     renderReviewTable();
   } catch (err) {
-    showAdminMsg('تعذّرت قراءة الملف: ' + err.message, 'error');
+    showAdminMsgPlain('تعذّرت قراءة الملف: ' + err.message, 'error');
   }
 }
 
@@ -1031,11 +1035,11 @@ async function handleSubmitRows() {
   if (!reviewRows.length) return;
   const invalid = reviewRows.some(r => !r.date || !r.name || !r.amount);
   if (invalid) {
-    showAdminMsg('تأكد من اختيار العضو وتعبئة التاريخ والمبلغ لكل صف قبل الإرسال (الصفوف التي بلا اسم مختار لن تُقبل).', 'error');
+    showAdminMsgPlain('تأكد من اختيار العضو وتعبئة التاريخ والمبلغ لكل صف قبل الإرسال (الصفوف التي بلا اسم مختار لن تُقبل).', 'error');
     return;
   }
 
-  showAdminMsg('جاري الإرسال...', '');
+  showAdminMsgPlain('جاري الإرسال...', '');
   const submitBtn = document.getElementById('submitRowsBtn');
   if (submitBtn) submitBtn.disabled = true;
 
@@ -1055,15 +1059,15 @@ async function handleSubmitRows() {
     if (result.success) {
       let msg = `تم إضافة ${result.added} عملية بنجاح إلى سجل الحوالات.`;
       if (result.skippedDuplicates) msg += ` تم تجاهل ${result.skippedDuplicates} عملية مكررة (نفس العضو ونفس التاريخ موجودان مسبقاً).`;
-      showAdminMsg(msg, 'success');
+      showAdminMsgPlain(msg, 'success');
       reviewRows = [];
       document.getElementById('reviewArea').innerHTML = '';
       loadData(); // تحديث لوحة المعلومات المعروضة
     } else {
-      showAdminMsg('فشل الإرسال: ' + (result.error || 'خطأ غير معروف'), 'error');
+      showAdminMsgPlain('فشل الإرسال: ' + (result.error || 'خطأ غير معروف'), 'error');
     }
   } catch (err) {
-    showAdminMsg('تعذّر الاتصال بالسكربت: ' + err.message, 'error');
+    showAdminMsgPlain('تعذّر الاتصال بالسكربت: ' + err.message, 'error');
   } finally {
     if (submitBtn) submitBtn.disabled = false;
   }
