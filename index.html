@@ -887,8 +887,13 @@ async function extractTransactionsFromPdf(file) {
 
     let currentTx = null;
     let pendingTypeText = '';
+    // سطر "نوع العملية" الحقيقي هو دائماً عربي خالص ويحوي إحدى هذه الكلمات المفتاحية —
+    // أي سطر آخر (حتى لو جاء بموضع مشابه) يُعامَل كملاحظة تُضاف للعملية الحالية.
+    // هذا أكثر ثباتاً من الاعتماد على ترتيب/تجاور الأسطر، الذي قد يختلف بين نسخ الكشف.
+    const isTypeBandText = (text) =>
+      /تحويل|مستديم|حوالة|حوالات|إيداع|ايداع/.test(text) && !/[A-Za-z]/.test(text) && !/\d/.test(text);
 
-    flags.forEach((f, idx) => {
+    flags.forEach((f) => {
       if (f.isAnchor) {
         const findAmount = (center) => {
           const it = f.band.find(i => near(i.x, center) && /[\d,]+\.\d{2}/.test(i.text));
@@ -916,9 +921,7 @@ async function extractTransactionsFromPdf(file) {
       } else {
         const sorted = [...f.band].sort((a, b) => b.x - a.x);
         const text = sorted.map(i => i.text).join(' ').replace(/\s+/g, ' ').trim();
-        const nextIsAnchor = flags[idx + 1] && flags[idx + 1].isAnchor;
-        if (nextIsAnchor) {
-          // هذا السطر هو سطر "نوع العملية" للحوالة القادمة، أياً كان نصه الفعلي
+        if (isTypeBandText(text)) {
           pendingTypeText = text;
         } else if (currentTx) {
           const { arabicWords, latinWords } = wordsFromBandItems(f.band);
@@ -932,7 +935,7 @@ async function extractTransactionsFromPdf(file) {
 
   lastExtractDebug = debug; // متاحة للعرض إن لم يُستخرج شيء (تشخيص بلا أدوات مطوّر)
 
-  return transactions.map(t => {
+  const results = transactions.map(t => {
     const matched = matchMember(t.arabicWords, t.latinWords);
     return {
       id: t.id,
@@ -943,6 +946,17 @@ async function extractTransactionsFromPdf(file) {
       amount: t.amount
     };
   });
+
+  // حالة خاصة: "عبدالرحمن" وحدها ملتبسة بين عضوين. إذا ظهرت مرتين بلا تطابق ضمن نفس الكشف،
+  // نفترض أن الأولى (بترتيب ظهورها) لعبدالرحمن عبدالله والثانية لعبدالرحمن مطير — بناءً على طلب الإدارة.
+  // يبقى الاسم قابلاً للتعديل يدوياً في جدول المراجعة لو كان الافتراض خاطئاً.
+  const ambiguousRahman = results.filter(r => !r.name && r.rawHint === 'عبدالرحمن');
+  if (ambiguousRahman.length === 2) {
+    ambiguousRahman[0].name = 'عبدالرحمن عبدالله';
+    ambiguousRahman[1].name = 'عبدالرحمن مطير';
+  }
+
+  return results;
 }
 
 let lastExtractDebug = null;
