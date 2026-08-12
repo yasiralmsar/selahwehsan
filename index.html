@@ -825,6 +825,7 @@ async function extractTransactionsFromPdf(file) {
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
   const transactions = [];
+  const withdrawals = [];
   let lastCols = null;
   const debug = { pages: pdf.numPages, perPage: [] };
 
@@ -885,13 +886,15 @@ async function extractTransactionsFromPdf(file) {
     });
     pageDebug.anchorsOnPage = flags.filter(f => f.isAnchor).length;
 
-    let currentTx = null;
+    let active = null; // السجل الحالي الذي يستقبل أسطر الملاحظات التالية (حوالة أو سحب)
     let pendingTypeText = '';
     // سطر "نوع العملية" الحقيقي هو دائماً عربي خالص ويحوي إحدى هذه الكلمات المفتاحية —
     // أي سطر آخر (حتى لو جاء بموضع مشابه) يُعامَل كملاحظة تُضاف للعملية الحالية.
     // هذا أكثر ثباتاً من الاعتماد على ترتيب/تجاور الأسطر، الذي قد يختلف بين نسخ الكشف.
     const isTypeBandText = (text) =>
       /تحويل|مستديم|حوالة|حوالات|إيداع|ايداع/.test(text) && !/[A-Za-z]/.test(text) && !/\d/.test(text);
+    // نص تذييل الصفحة القياسي في كشوفات الراجحي — يُستبعد كلياً من الملاحظات حتى لا يلتصق بآخر عملية في الصفحة
+    const isFooterBoilerplate = (text) => /الوثيقة|مسؤولية المحافظة|confidential|holder/i.test(text);
 
     flags.forEach((f) => {
       if (f.isAnchor) {
@@ -902,9 +905,10 @@ async function extractTransactionsFromPdf(file) {
           return m ? parseFloat(m[0].replace(/,/g, '')) : 0;
         };
         const credit = findAmount(cols.credit);
-        // نأخذ حصرياً من عمود "دائن" — أي عملية سحب (مدين فقط، دائن = 0) تُستبعد كلياً لأنها ليست حوالة عضو
+        const debit = findAmount(cols.debit);
         if (credit > 0) {
-          currentTx = {
+          active = {
+            kind: 'transfer',
             id: 'r' + (rowIdCounter++),
             date: f.dateText,
             type: classifyType(pendingTypeText),
@@ -913,21 +917,36 @@ async function extractTransactionsFromPdf(file) {
             latinWords: [],
             rawNote: ''
           };
-          transactions.push(currentTx);
+          transactions.push(active);
+        } else if (debit > 0) {
+          // عملية سحب من حساب الصندوق — تُستخرج لتذهب لاحقاً إلى تبويب المصروفات، وليس تبويب حوالات الأعضاء
+          active = {
+            kind: 'withdrawal',
+            id: 'w' + (rowIdCounter++),
+            date: f.dateText,
+            rawType: pendingTypeText || 'تحويل',
+            amount: debit.toFixed(2),
+            arabicWords: [],
+            latinWords: [],
+            rawNote: ''
+          };
+          withdrawals.push(active);
         } else {
-          currentTx = null; // تجاهل تفاصيل هذه العملية (سحب) تماماً
+          active = null;
         }
         pendingTypeText = '';
       } else {
         const sorted = [...f.band].sort((a, b) => b.x - a.x);
         const text = sorted.map(i => i.text).join(' ').replace(/\s+/g, ' ').trim();
-        if (isTypeBandText(text)) {
+        if (isFooterBoilerplate(text)) {
+          // تجاهل تام — تذييل الصفحة، ليس جزءاً من أي عملية
+        } else if (isTypeBandText(text)) {
           pendingTypeText = text;
-        } else if (currentTx) {
+        } else if (active) {
           const { arabicWords, latinWords } = wordsFromBandItems(f.band);
-          currentTx.arabicWords.push(...arabicWords);
-          currentTx.latinWords = currentTx.latinWords.concat(latinWords);
-          currentTx.rawNote += ' ' + text;
+          active.arabicWords.push(...arabicWords);
+          active.latinWords = active.latinWords.concat(latinWords);
+          active.rawNote += ' ' + text;
         }
       }
     });
@@ -956,10 +975,22 @@ async function extractTransactionsFromPdf(file) {
     ambiguousRahman[1].name = 'عبدالرحمن مطير';
   }
 
-  return results;
+  const withdrawalResults = withdrawals.map(w => {
+    const detailWords = w.arabicWords.concat(w.latinWords);
+    return {
+      id: w.id,
+      date: w.date,
+      opType: w.rawType,                    // نوع العملية — نص حر قابل للتعديل
+      details: detailWords.join(' ').trim() || w.rawNote.trim(), // تفاصيل مقترحة من ملاحظة الكشف — قابلة للتعديل
+      amount: w.amount
+    };
+  });
+
+  return { transfers: results, withdrawals: withdrawalResults };
 }
 
 let lastExtractDebug = null;
+let withdrawalRows = []; // صفوف السحوبات (مدين) المستخرجة/المعدّلة قبل الإرسال إلى تبويب المصروفات
 
 async function handleParsePdf() {
   const fileInput = document.getElementById('pdfFileInput');
@@ -968,8 +999,10 @@ async function handleParsePdf() {
 
   showAdminMsgPlain('جاري قراءة الملف...', '');
   try {
-    reviewRows = await extractTransactionsFromPdf(fileInput.files[0]);
-    if (reviewRows.length === 0) {
+    const extracted = await extractTransactionsFromPdf(fileInput.files[0]);
+    reviewRows = extracted.transfers;
+    withdrawalRows = extracted.withdrawals;
+    if (reviewRows.length === 0 && withdrawalRows.length === 0) {
       const d = lastExtractDebug;
       let diag = 'لم يتم التعرف تلقائياً على أي عملية داخل الملف.<br><br><b>تشخيص:</b><br>';
       if (d) {
@@ -983,9 +1016,11 @@ async function handleParsePdf() {
       showAdminMsg(diag, 'error');
     } else {
       const unmatched = reviewRows.filter(r => !r.name).length;
-      const msg = unmatched
-        ? `تم استخراج ${reviewRows.length} عملية (${unmatched} منها بحاجة لاختيار الاسم يدوياً). راجع البيانات أدناه قبل الإرسال.`
-        : `تم استخراج ${reviewRows.length} عملية وتمّت مطابقة كل الأسماء تلقائياً. راجع البيانات أدناه قبل الإرسال.`;
+      let msg = unmatched
+        ? `تم استخراج ${reviewRows.length} حوالة عضو (${unmatched} منها بحاجة لاختيار الاسم يدوياً)`
+        : `تم استخراج ${reviewRows.length} حوالة عضو وتمّت مطابقة كل الأسماء تلقائياً`;
+      if (withdrawalRows.length) msg += ` و${withdrawalRows.length} عملية سحب من حساب الصندوق`;
+      msg += '. راجع البيانات أدناه قبل الإرسال.';
       showAdminMsgPlain(msg, 'success');
     }
     renderReviewTable();
@@ -997,13 +1032,16 @@ async function handleParsePdf() {
 /* ---------- 3) جدول مراجعة قابل للتعديل قبل الإرسال ---------- */
 function renderReviewTable() {
   const area = document.getElementById('reviewArea');
-  if (!reviewRows.length) { area.innerHTML = ''; return; }
+  if (!reviewRows.length && !withdrawalRows.length) { area.innerHTML = ''; return; }
 
   const memberOptions = (selected) => `<option value="">— اختر العضو —</option>` +
     MEMBERS.map(m => `<option value="${m}" ${m === selected ? 'selected' : ''}>${m}</option>`).join('');
   const typeOptionsHtml = (selected) => TRANSFER_TYPES.map(t => `<option value="${t}" ${t === selected ? 'selected' : ''}>${t}</option>`).join('');
 
-  area.innerHTML = `
+  let html = '';
+  if (reviewRows.length) {
+    html += `
+    <h4 style="margin:14px 0 6px;color:var(--primary);">حوالات الأعضاء (تذهب إلى "تفاصيل التحويلات لكل عضو")</h4>
     <div class="review-table-wrap">
       <table class="review-table">
         <thead><tr><th>التاريخ</th><th>الاسم</th><th>نوع الحوالة</th><th>المبلغ</th><th></th></tr></thead>
@@ -1012,40 +1050,84 @@ function renderReviewTable() {
     </div>
     <div class="admin-actions">
       <button class="admin-btn secondary" id="addRowBtn">+ إضافة صف يدوياً</button>
-      <button class="admin-btn" id="submitRowsBtn">إرسال إلى سجل الحوالات</button>
+    </div>`;
+  }
+  if (withdrawalRows.length) {
+    html += `
+    <h4 style="margin:18px 0 6px;color:var(--primary);">سحوبات من حساب الصندوق (تذهب إلى "المصروفات (السحوبات)")</h4>
+    <div class="review-table-wrap">
+      <table class="review-table">
+        <thead><tr><th>التاريخ</th><th>نوع العملية</th><th>التفاصيل</th><th>المبلغ</th><th></th></tr></thead>
+        <tbody id="withdrawalBody"></tbody>
+      </table>
     </div>
-  `;
-  document.getElementById('addRowBtn').addEventListener('click', () => {
-    reviewRows.push({ id: 'r' + (rowIdCounter++), date: '', name: '', rawHint: '', type: 'تحويل', amount: '' });
-    renderReviewTable();
-  });
-  document.getElementById('submitRowsBtn').addEventListener('click', handleSubmitRows);
+    <div class="admin-actions">
+      <button class="admin-btn secondary" id="addWithdrawalBtn">+ إضافة سحب يدوياً</button>
+    </div>`;
+  }
+  html += `<div class="admin-actions"><button class="admin-btn" id="submitRowsBtn">إرسال إلى السجلات</button></div>`;
+  area.innerHTML = html;
 
-  const tbody = document.getElementById('reviewBody');
-  tbody.innerHTML = reviewRows.map(r => `
-    <tr data-id="${r.id}">
-      <td><input type="text" class="f-date" value="${escapeHtml(r.date)}" placeholder="YYYY/MM/DD"></td>
-      <td>
-        <select class="f-name">${memberOptions(r.name)}</select>
-        ${r.rawHint ? `<div class="admin-note" style="margin-top:3px;">${escapeHtml(r.rawHint)}</div>` : ''}
-      </td>
-      <td><select class="f-type">${typeOptionsHtml(r.type)}</select></td>
-      <td><input type="text" class="f-amount" value="${escapeHtml(r.amount)}" placeholder="0.00"></td>
-      <td><button class="review-row-del" title="حذف الصف">✕</button></td>
-    </tr>
-  `).join('');
-
-  tbody.querySelectorAll('tr').forEach(tr => {
-    const id = tr.getAttribute('data-id');
-    tr.querySelector('.f-date').addEventListener('input', e => updateRow(id, 'date', e.target.value));
-    tr.querySelector('.f-name').addEventListener('change', e => updateRow(id, 'name', e.target.value));
-    tr.querySelector('.f-type').addEventListener('change', e => updateRow(id, 'type', e.target.value));
-    tr.querySelector('.f-amount').addEventListener('input', e => updateRow(id, 'amount', e.target.value));
-    tr.querySelector('.review-row-del').addEventListener('click', () => {
-      reviewRows = reviewRows.filter(r => r.id !== id);
+  if (reviewRows.length) {
+    document.getElementById('addRowBtn').addEventListener('click', () => {
+      reviewRows.push({ id: 'r' + (rowIdCounter++), date: '', name: '', rawHint: '', type: 'تحويل', amount: '' });
       renderReviewTable();
     });
-  });
+    const tbody = document.getElementById('reviewBody');
+    tbody.innerHTML = reviewRows.map(r => `
+      <tr data-id="${r.id}">
+        <td><input type="text" class="f-date" value="${escapeHtml(r.date)}" placeholder="YYYY/MM/DD"></td>
+        <td>
+          <select class="f-name">${memberOptions(r.name)}</select>
+          ${r.rawHint ? `<div class="admin-note" style="margin-top:3px;">${escapeHtml(r.rawHint)}</div>` : ''}
+        </td>
+        <td><select class="f-type">${typeOptionsHtml(r.type)}</select></td>
+        <td><input type="text" class="f-amount" value="${escapeHtml(r.amount)}" placeholder="0.00"></td>
+        <td><button class="review-row-del" title="حذف الصف">✕</button></td>
+      </tr>
+    `).join('');
+    tbody.querySelectorAll('tr').forEach(tr => {
+      const id = tr.getAttribute('data-id');
+      tr.querySelector('.f-date').addEventListener('input', e => updateRow(id, 'date', e.target.value));
+      tr.querySelector('.f-name').addEventListener('change', e => updateRow(id, 'name', e.target.value));
+      tr.querySelector('.f-type').addEventListener('change', e => updateRow(id, 'type', e.target.value));
+      tr.querySelector('.f-amount').addEventListener('input', e => updateRow(id, 'amount', e.target.value));
+      tr.querySelector('.review-row-del').addEventListener('click', () => {
+        reviewRows = reviewRows.filter(r => r.id !== id);
+        renderReviewTable();
+      });
+    });
+  }
+
+  if (withdrawalRows.length) {
+    document.getElementById('addWithdrawalBtn').addEventListener('click', () => {
+      withdrawalRows.push({ id: 'w' + (rowIdCounter++), date: '', opType: 'تحويل', details: '', amount: '' });
+      renderReviewTable();
+    });
+    const wbody = document.getElementById('withdrawalBody');
+    wbody.innerHTML = withdrawalRows.map(r => `
+      <tr data-id="${r.id}">
+        <td><input type="text" class="w-date" value="${escapeHtml(r.date)}" placeholder="YYYY/MM/DD"></td>
+        <td><input type="text" class="w-optype" value="${escapeHtml(r.opType)}" placeholder="نوع العملية"></td>
+        <td><input type="text" class="w-details" value="${escapeHtml(r.details)}" placeholder="التفاصيل"></td>
+        <td><input type="text" class="w-amount" value="${escapeHtml(r.amount)}" placeholder="0.00"></td>
+        <td><button class="review-row-del" title="حذف الصف">✕</button></td>
+      </tr>
+    `).join('');
+    wbody.querySelectorAll('tr').forEach(tr => {
+      const id = tr.getAttribute('data-id');
+      tr.querySelector('.w-date').addEventListener('input', e => updateWithdrawalRow(id, 'date', e.target.value));
+      tr.querySelector('.w-optype').addEventListener('input', e => updateWithdrawalRow(id, 'opType', e.target.value));
+      tr.querySelector('.w-details').addEventListener('input', e => updateWithdrawalRow(id, 'details', e.target.value));
+      tr.querySelector('.w-amount').addEventListener('input', e => updateWithdrawalRow(id, 'amount', e.target.value));
+      tr.querySelector('.review-row-del').addEventListener('click', () => {
+        withdrawalRows = withdrawalRows.filter(r => r.id !== id);
+        renderReviewTable();
+      });
+    });
+  }
+
+  document.getElementById('submitRowsBtn').addEventListener('click', handleSubmitRows);
 }
 
 function updateRow(id, field, value) {
@@ -1053,12 +1135,22 @@ function updateRow(id, field, value) {
   if (row) row[field] = value;
 }
 
+function updateWithdrawalRow(id, field, value) {
+  const row = withdrawalRows.find(r => r.id === id);
+  if (row) row[field] = value;
+}
+
 /* ---------- 4) إرسال البيانات النهائية إلى Google Apps Script ---------- */
 async function handleSubmitRows() {
-  if (!reviewRows.length) return;
-  const invalid = reviewRows.some(r => !r.date || !r.name || !r.amount);
-  if (invalid) {
-    showAdminMsgPlain('تأكد من اختيار العضو وتعبئة التاريخ والمبلغ لكل صف قبل الإرسال (الصفوف التي بلا اسم مختار لن تُقبل).', 'error');
+  if (!reviewRows.length && !withdrawalRows.length) return;
+  const invalidTransfers = reviewRows.some(r => !r.date || !r.name || !r.amount);
+  const invalidWithdrawals = withdrawalRows.some(r => !r.date || !r.amount);
+  if (invalidTransfers) {
+    showAdminMsgPlain('تأكد من اختيار العضو وتعبئة التاريخ والمبلغ لكل صف حوالة قبل الإرسال (الصفوف التي بلا اسم مختار لن تُقبل).', 'error');
+    return;
+  }
+  if (invalidWithdrawals) {
+    showAdminMsgPlain('تأكد من تعبئة التاريخ والمبلغ لكل صف سحب قبل الإرسال.', 'error');
     return;
   }
 
@@ -1072,6 +1164,9 @@ async function handleSubmitRows() {
       adminKey: adminKeyValue,
       transfers: reviewRows.map(r => ({
         date: r.date, name: r.name, type: r.type, amount: parseFloat(r.amount) || 0
+      })),
+      withdrawals: withdrawalRows.map(r => ({
+        date: r.date, opType: r.opType, details: r.details, amount: parseFloat(r.amount) || 0
       }))
     };
     // ملاحظة: نرسل بدون تحديد Content-Type كـ application/json لتفادي CORS preflight
@@ -1080,10 +1175,13 @@ async function handleSubmitRows() {
     const result = await resp.json();
 
     if (result.success) {
-      let msg = `تم إضافة ${result.added} عملية بنجاح إلى سجل الحوالات.`;
+      let msg = `تم إضافة ${result.added} حوالة عضو`;
+      if (result.addedExpenses) msg += ` و${result.addedExpenses} عملية سحب`;
+      msg += ' بنجاح.';
       if (result.skippedDuplicates) msg += ` تم تجاهل ${result.skippedDuplicates} عملية مكررة (نفس العضو ونفس التاريخ موجودان مسبقاً).`;
       showAdminMsgPlain(msg, 'success');
       reviewRows = [];
+      withdrawalRows = [];
       document.getElementById('reviewArea').innerHTML = '';
       loadData(); // تحديث لوحة المعلومات المعروضة
     } else {
