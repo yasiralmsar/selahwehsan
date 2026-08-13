@@ -669,7 +669,7 @@ const MEMBERS = [
 // جدول تحويل الأسماء العربية إلى نظائرها اللاتينية الشائعة (لمطابقة "أمر مستديم" الذي يظهر بالإنجليزية فقط في الكشف)
 const TRANSLIT = {
   "عبدالله": ["ABDULLAH","ABDALLAH","ABDULLA"],
-  "مطير": ["MUTAIR","MOTEER","MTEER","MUTEER","MOTAIR"],
+  "مطير": ["MUTAIR","MOTEER","MTEER","MUTEER","MOTAIR","MOTHIR"],
   "عبيدالله": ["OBAIDALLAH","OBEIDALLAH","ABIDALLAH","OBAYDALLAH"],
   "سعود": ["SAUD","SAOUD","SAAOD","SAOD"],
   "محمد": ["MOHAMMED","MOHAMMAD","MUHAMMAD","MOHAMED"],
@@ -745,7 +745,7 @@ function openAdminPanel() {
     <div class="admin-overlay" id="adminOverlay">
       <div class="admin-modal">
         <button class="admin-close" id="adminCloseBtn" aria-label="إغلاق">×</button>
-        <h3>لوحة التحكم — رفع كشف حساب <span style="font-size:12px;color:var(--text-muted);font-weight:400;">(v6)</span></h3>
+        <h3>لوحة التحكم — رفع كشف حساب <span style="font-size:12px;color:var(--text-muted);font-weight:400;">(v7)</span></h3>
 
         <div class="admin-field">
           <label>مفتاح المشرف (Admin Key)</label>
@@ -956,11 +956,13 @@ async function extractTransactionsFromPdf(file) {
 
   const results = transactions.map(t => {
     const matched = matchMember(t.arabicWords, t.latinWords);
+    const wordsHint = t.arabicWords.join(' ') || t.latinWords.join(' ');
     return {
       id: t.id,
       date: t.date,
       name: matched || '',                 // فارغ إن لم يوجد تطابق فريد — يختاره المشرف يدوياً
-      rawHint: t.arabicWords.join(' ') || t.latinWords.join(' '), // للعرض فقط كمساعدة للمشرف
+      // للعرض فقط كمساعدة للمشرف: الكلمات المستخرجة، ثم (إن لم يوجد تطابق) النص الخام الكامل كما استخرجه pdf.js حرفياً
+      rawHint: matched ? wordsHint : (wordsHint + (t.rawNote.trim() ? ' | خام: ' + t.rawNote.trim() : '')),
       type: t.type,
       amount: t.amount
     };
