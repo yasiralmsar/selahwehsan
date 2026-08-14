@@ -745,7 +745,7 @@ function openAdminPanel() {
     <div class="admin-overlay" id="adminOverlay">
       <div class="admin-modal">
         <button class="admin-close" id="adminCloseBtn" aria-label="إغلاق">×</button>
-        <h3>لوحة التحكم — رفع كشف حساب <span style="font-size:12px;color:var(--text-muted);font-weight:400;">(v8)</span></h3>
+        <h3>لوحة التحكم — رفع كشف حساب <span style="font-size:12px;color:var(--text-muted);font-weight:400;">(v9)</span></h3>
 
         <div class="admin-field">
           <label>مفتاح المشرف (Admin Key)</label>
@@ -898,14 +898,14 @@ async function extractTransactionsFromPdf(file) {
 
     flags.forEach((f) => {
       if (f.isAnchor) {
-        const findAmount = (center) => {
-          const it = f.band.find(i => near(i.x, center) && /[\d,]+\.\d{2}/.test(i.text));
-          if (!it) return 0;
-          const m = it.text.match(/[\d,]+\.\d{2}/);
-          return m ? parseFloat(m[0].replace(/,/g, '')) : 0;
-        };
-        const credit = findAmount(cols.credit);
-        const debit = findAmount(cols.debit);
+        const dateItem = f.band.find(i => near(i.x, cols.date) && /\d{4}\/\d{2}\/\d{2}/.test(i.text));
+        const findAmountItem = (center) => f.band.find(i => near(i.x, center) && /[\d,]+\.\d{2}/.test(i.text));
+        const creditItem = findAmountItem(cols.credit);
+        const debitItem = findAmountItem(cols.debit);
+        const balanceItem = findAmountItem(cols.balance);
+        const credit = creditItem ? parseFloat(creditItem.text.match(/[\d,]+\.\d{2}/)[0].replace(/,/g, '')) : 0;
+        const debit = debitItem ? parseFloat(debitItem.text.match(/[\d,]+\.\d{2}/)[0].replace(/,/g, '')) : 0;
+
         if (credit > 0) {
           active = {
             kind: 'transfer',
@@ -935,6 +935,20 @@ async function extractTransactionsFromPdf(file) {
           active = null;
         }
         pendingTypeText = '';
+
+        // أحياناً يلتصق جزء من نص الملاحظة (مثل اسم مفرد في بداية الملاحظة) بنفس سطر التاريخ/المبالغ
+        // بفعل تقارب بسيط في الإحداثي الرأسي. أي عنصر في هذا السطر غير التاريخ/الأرصدة الثلاثة
+        // يُعامَل كجزء من الملاحظة، لا يُهمَل — لضمان عدم فقدان أي كلمة من الاسم.
+        if (active) {
+          const consumed = new Set([dateItem, creditItem, debitItem, balanceItem].filter(Boolean));
+          const extraItems = f.band.filter(i => !consumed.has(i) && i.text.trim().toUpperCase() !== 'SAR');
+          if (extraItems.length) {
+            const { arabicWords, latinWords } = wordsFromBandItems(extraItems);
+            active.arabicWords.push(...arabicWords);
+            active.latinWords = active.latinWords.concat(latinWords);
+            active.rawNote += ' ' + extraItems.map(i => i.text).join(' ');
+          }
+        }
       } else {
         const sorted = [...f.band].sort((a, b) => b.x - a.x);
         const text = sorted.map(i => i.text).join(' ').replace(/\s+/g, ' ').trim();
