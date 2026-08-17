@@ -500,6 +500,78 @@
     max-width: 400px; margin: 14px auto 0; text-align: center;
     font-size: 13px; color: rgba(255,255,255,0.75); font-weight: 600;
   }
+
+  /* ===== بطاقة الفيديو التعريفي (تحميل كسول Lazy Load - لا شيء يتحمّل إلا عند الضغط) ===== */
+  .video-guide-section { margin-top: 30px; }
+  .video-facade {
+    position: relative; overflow: hidden;
+    border-radius: 20px; cursor: pointer;
+    aspect-ratio: 16 / 9;
+    background: linear-gradient(135deg, #0b2e23 0%, #123d2e 55%, #0b2e23 100%);
+    box-shadow: 0 14px 36px rgba(11, 46, 35, 0.18), inset 0 1px 1px rgba(255,255,255,0.08);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 20px;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .video-facade::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 85% -10%, rgba(197,160,89,0.28) 0%, transparent 45%),
+      radial-gradient(circle at -10% 110%, rgba(197,160,89,0.16) 0%, transparent 45%);
+    pointer-events: none;
+  }
+  .video-facade:hover { transform: translateY(-2px); box-shadow: 0 18px 44px rgba(11, 46, 35, 0.24); }
+  .video-play-btn {
+    position: relative; z-index: 1;
+    width: 66px; height: 66px; border-radius: 50%;
+    background: var(--secondary);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; color: #0b2e23;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.3);
+    transition: transform 0.2s ease;
+  }
+  .video-facade:hover .video-play-btn { transform: scale(1.08); }
+  .video-facade-title { position: relative; z-index: 1; margin-top: 16px; font-size: 17px; font-weight: 800; color: #fff; }
+  .video-facade-sub { position: relative; z-index: 1; margin-top: 4px; font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.65); }
+  .video-embed-wrap {
+    position: relative; width: 100%; aspect-ratio: 16 / 9;
+    border-radius: 20px; overflow: hidden;
+    box-shadow: 0 14px 36px rgba(11, 46, 35, 0.18);
+  }
+  .video-embed-wrap iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+  /* ===== شريط التنقل الجانبي الثابت (Sticky) بين أقسام الصفحة ===== */
+  .side-nav {
+    position: fixed;
+    top: 50%; right: 10px;
+    transform: translateY(-50%);
+    display: flex; flex-direction: column; gap: 9px;
+    z-index: 500;
+  }
+  .side-nav-btn {
+    width: 38px; height: 38px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.55);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.5);
+    font-size: 16px; text-decoration: none;
+    box-shadow: 0 4px 14px rgba(11,46,35,0.15);
+    opacity: 0.55;
+    transition: opacity 0.25s ease, transform 0.25s ease, background 0.25s ease, border-color 0.25s ease;
+  }
+  .side-nav-btn:hover, .side-nav-btn:focus-visible { opacity: 1; transform: scale(1.08); }
+  .side-nav-btn.active {
+    opacity: 1;
+    background: var(--secondary);
+    border-color: rgba(197,160,89,0.7);
+    box-shadow: 0 6px 18px rgba(197,160,89,0.4);
+  }
+  @media (max-width: 380px) {
+    .side-nav { right: 6px; gap: 7px; }
+    .side-nav-btn { width: 34px; height: 34px; font-size: 14px; }
+  }
 </style>
 </head>
 <body>
@@ -516,6 +588,17 @@
     <p>تكافل .. عطاء .. استدامة</p>
   </header>
 
+  <div class="container">
+    <section class="reveal video-guide-section" id="section-video">
+      <div class="section-header"><h2>طريقة إنشاء أمر مستديم (تحويل شهري تلقائي)</h2></div>
+      <div class="video-facade" id="videoFacade" role="button" tabindex="0" aria-label="تشغيل فيديو شرح إنشاء أمر مستديم">
+        <div class="video-play-btn">▶</div>
+        <div class="video-facade-title">شرح خطوة بخطوة عبر تطبيق الراجحي</div>
+        <div class="video-facade-sub">اضغط للتشغيل</div>
+      </div>
+    </section>
+  </div>
+
   <div class="container" id="appContainer">
     <div class="loading">جاري تحميل بيانات الصندوق...</div>
   </div>
@@ -528,6 +611,14 @@
 <button id="adminTriggerBtn" class="admin-trigger" title="لوحة التحكم" aria-label="لوحة التحكم">⚙</button>
 <div id="adminMount"></div>
 <div id="bankCardMount"></div>
+
+<nav class="side-nav" aria-label="التنقل السريع بين أقسام الصفحة">
+  <a href="#section-video" class="side-nav-btn" title="الفيديو التعريفي" aria-label="الفيديو التعريفي"><span>🎬</span></a>
+  <a href="#section-balance" class="side-nav-btn" title="الرصيد الحالي" aria-label="الرصيد الحالي"><span>💰</span></a>
+  <a href="#section-late" class="side-nav-btn" title="المتأخرون عن السداد" aria-label="المتأخرون عن السداد"><span>⏰</span></a>
+  <a href="#section-members" class="side-nav-btn" title="كشف حسابات الأعضاء" aria-label="كشف حسابات الأعضاء"><span>👥</span></a>
+  <a href="#section-expenses" class="side-nav-btn" title="سجل المصروفات" aria-label="سجل المصروفات"><span>🧾</span></a>
+</nav>
 
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbzXfcGvNVt4cJy5svPGxugGD8YGv_OyEeCE-Ee9-E34FEXDX30vfZP4tBwBruNG-DXIvg/exec";
@@ -592,7 +683,7 @@ function renderApp(d) {
   `).join('');
 
   document.getElementById('appContainer').innerHTML = `
-    <div class="glass-card hero-card">
+    <div class="glass-card hero-card" id="section-balance">
       <div class="hero-box">
         <div class="label">الرصيد الحالي للصندوق</div>
         <div class="amount"><span class="count-num" data-count="${d.balance}">0</span><span>ريال</span></div>
@@ -628,12 +719,12 @@ function renderApp(d) {
       </div>
     </div>
 
-    <section class="reveal">
+    <section class="reveal" id="section-late">
       <div class="section-header"><h2>المتأخرون عن السداد</h2></div>
       <div class="late-list">${lateListHtml}</div>
     </section>
 
-    <section class="reveal">
+    <section class="reveal" id="section-members">
       <div class="section-header"><h2>كشف الحسابات المفصل للأعضاء</h2></div>
       <input type="text" id="searchInput" class="search-input" placeholder="ابحث عن اسم عضو أو حالة (منتظم/متأخر)...">
       <div class="table-wrapper table-container-mobile">
@@ -651,7 +742,7 @@ function renderApp(d) {
     </section>
 
     ${d.expensesList.length > 0 ? `
-    <section class="reveal">
+    <section class="reveal" id="section-expenses">
       <div class="section-header"><h2>سجل المصروفات (السحوبات)</h2></div>
       <div class="table-wrapper table-container-mobile">
         <table>
@@ -672,6 +763,7 @@ function renderApp(d) {
   initAnimations();
   initSearch();
   document.getElementById('bankCardTriggerBtn').addEventListener('click', openBankCard);
+  initSideNav();
 }
 
 /* ===== بطاقة بيانات الحساب البنكي =====
@@ -752,6 +844,42 @@ function fallbackCopy(text, done) {
   document.body.removeChild(ta);
 }
 
+/* ===== فيديو شرح إنشاء أمر مستديم =====
+   تحميل كسول (Lazy Load): الفيديو لا يتحمّل إطلاقاً من درايف إلا بعد ضغط المستخدم على البطاقة،
+   فلا يوجد أي تأثير على سرعة أو حجم الصفحة عند فتحها لأول مرة.
+   خطوات الرفع على Google Drive:
+     1) ارفع الفيديو، ثم من زر المشاركة اختر "أي شخص لديه الرابط" بصلاحية "عارض/Viewer".
+     2) انسخ رابط المشاركة، شكله: https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+     3) خذ الجزء FILE_ID فقط (بين /d/ و /view) وضعه هنا: */
+const GUIDE_VIDEO_DRIVE_ID = ""; // مثال: 1AbCdEfGhIjKlMnOpQrStUvWxYz1234
+
+function playGuideVideo() {
+  if (!GUIDE_VIDEO_DRIVE_ID) {
+    alert('لم يتم إضافة رابط الفيديو بعد.');
+    return;
+  }
+  const facade = document.getElementById('videoFacade');
+  facade.outerHTML = `
+    <div class="video-embed-wrap">
+      <iframe
+        src="https://drive.google.com/file/d/${GUIDE_VIDEO_DRIVE_ID}/preview"
+        title="شرح إنشاء أمر مستديم في مصرف الراجحي"
+        allow="accelerate; autoplay; encrypted-media; picture-in-picture"
+        allowfullscreen
+        loading="lazy">
+      </iframe>
+    </div>
+  `;
+}
+
+const videoFacadeEl = document.getElementById('videoFacade');
+if (videoFacadeEl) {
+  videoFacadeEl.addEventListener('click', playGuideVideo);
+  videoFacadeEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); playGuideVideo(); }
+  });
+}
+
 function initAnimations() {
   function animateCount(el){
     const target = parseFloat(el.getAttribute('data-count')) || 0;
@@ -812,6 +940,32 @@ function initSearch() {
       </tr>
     `).join('');
   });
+}
+
+/* ===== شريط التنقل الجانبي: تمييز القسم الحالي أثناء التمرير (Scrollspy) =====
+   يعتمد على IntersectionObserver (خفيف جداً، بدون أي مكتبات خارجية). */
+let sideNavObserver = null;
+function initSideNav() {
+  const links = document.querySelectorAll('.side-nav-btn');
+  const targets = [];
+  links.forEach(link => {
+    const el = document.getElementById(link.getAttribute('href').slice(1));
+    if (el) targets.push({ el, link });
+  });
+  if (!targets.length) return;
+
+  if (sideNavObserver) sideNavObserver.disconnect();
+  sideNavObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const match = targets.find(t => t.el === entry.target);
+      if (!match) return;
+      links.forEach(l => l.classList.remove('active'));
+      match.link.classList.add('active');
+    });
+  }, { rootMargin: '-40% 0px -50% 0px', threshold: 0 });
+
+  targets.forEach(t => sideNavObserver.observe(t.el));
 }
 
 loadData();
