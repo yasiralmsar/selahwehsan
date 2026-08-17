@@ -411,6 +411,95 @@
   }
   .review-row-del { color: var(--danger-text); background: none; border: none; cursor: pointer; font-size: 16px; }
   .admin-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+  /* ===== بطاقة بيانات الحساب البنكي ===== */
+  .bank-card-trigger {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; margin-top: 16px;
+    background: rgba(255, 255, 255, 0.14);
+    backdrop-filter: blur(18px) saturate(160%);
+    -webkit-backdrop-filter: blur(18px) saturate(160%);
+    border: 1px solid rgba(197, 160, 89, 0.4);
+    color: var(--primary);
+    font-family: inherit; font-weight: 800; font-size: 15px;
+    padding: 13px 18px; border-radius: 14px; cursor: pointer;
+    box-shadow: 0 4px 14px rgba(11, 46, 35, 0.08), inset 0 1px 1px rgba(255,255,255,0.4);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  }
+  .bank-card-trigger:hover { transform: translateY(-2px); background: rgba(255, 255, 255, 0.22); box-shadow: 0 8px 20px rgba(11, 46, 35, 0.12); }
+  .bank-card-trigger .icon { font-size: 18px; }
+
+  .bank-card-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(11, 46, 35, 0.55);
+    backdrop-filter: blur(8px);
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px 16px; overflow-y: auto;
+  }
+  .bank-card-wrap {
+    width: 100%; max-width: 400px;
+    animation: bankCardIn 0.35s cubic-bezier(.22,1,.36,1) forwards;
+  }
+  @keyframes bankCardIn {
+    from { opacity: 0; transform: translateY(18px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .bank-card-close {
+    display: block; margin: 0 0 12px auto;
+    background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.4);
+    color: #fff; width: 34px; height: 34px; border-radius: 50%;
+    font-size: 18px; line-height: 1; cursor: pointer;
+  }
+  .bank-card {
+    position: relative; overflow: hidden;
+    border-radius: 22px;
+    padding: 28px 26px 24px;
+    background: linear-gradient(135deg, #0b2e23 0%, #123d2e 55%, #0b2e23 100%);
+    box-shadow: 0 24px 60px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.08);
+    color: #f6f4ef;
+    font-family: 'Tajawal', sans-serif;
+  }
+  .bank-card::before {
+    content: '';
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(circle at 85% -10%, rgba(197,160,89,0.28) 0%, transparent 45%),
+      radial-gradient(circle at -10% 110%, rgba(197,160,89,0.16) 0%, transparent 45%);
+    pointer-events: none;
+  }
+  .bank-card-top { display: flex; align-items: flex-start; justify-content: space-between; position: relative; }
+  .bank-card-bank { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; color: var(--secondary); }
+  .bank-card-bank .logo { font-size: 20px; }
+  .bank-card-fundlabel { font-size: 11px; color: rgba(246,244,239,0.55); font-weight: 700; letter-spacing: 0.5px; }
+  .bank-card-chip {
+    width: 38px; height: 28px; border-radius: 6px; margin-top: 26px;
+    background: linear-gradient(135deg, #e8d9a8 0%, #c5a059 50%, #e8d9a8 100%);
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.15);
+    position: relative;
+  }
+  .bank-card-fundname { margin-top: 18px; font-size: 20px; font-weight: 900; color: #fff; position: relative; }
+  .bank-card-iban-label { margin-top: 20px; font-size: 11px; color: rgba(246,244,239,0.55); font-weight: 700; letter-spacing: 0.5px; }
+  .bank-card-iban-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; position: relative; }
+  .bank-card-iban { font-size: 16px; font-weight: 800; letter-spacing: 1px; direction: ltr; text-align: right; word-break: break-all; }
+  .bank-card-copy {
+    flex-shrink: 0; background: rgba(197,160,89,0.2); border: 1px solid rgba(197,160,89,0.5);
+    color: var(--secondary); font-family: inherit; font-weight: 700; font-size: 12.5px;
+    padding: 7px 12px; border-radius: 8px; cursor: pointer; transition: background 0.2s ease;
+    white-space: nowrap;
+  }
+  .bank-card-copy:hover { background: rgba(197,160,89,0.32); }
+  .bank-card-copy.copied { background: rgba(46, 125, 50, 0.3); border-color: rgba(46,125,50,0.6); color: #a8dfae; }
+  .bank-card-footer {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    margin-top: 22px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.12);
+    position: relative;
+  }
+  .bank-card-accountno { font-size: 12.5px; color: rgba(246,244,239,0.65); }
+  .bank-card-accountno span { color: #fff; font-weight: 700; direction: ltr; display: inline-block; }
+  .bank-card-note {
+    max-width: 400px; margin: 14px auto 0; text-align: center;
+    font-size: 13px; color: rgba(255,255,255,0.75); font-weight: 600;
+  }
 </style>
 </head>
 <body>
@@ -438,6 +527,7 @@
 
 <button id="adminTriggerBtn" class="admin-trigger" title="لوحة التحكم" aria-label="لوحة التحكم">⚙</button>
 <div id="adminMount"></div>
+<div id="bankCardMount"></div>
 
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbzXfcGvNVt4cJy5svPGxugGD8YGv_OyEeCE-Ee9-E34FEXDX30vfZP4tBwBruNG-DXIvg/exec";
@@ -522,6 +612,9 @@ function renderApp(d) {
           <div class="update-date">${escapeHtml(d.lastUpdateDate)}</div>
           <div class="update-time">${escapeHtml(d.lastUpdateTime)}</div>
         </div>
+        <button class="bank-card-trigger" id="bankCardTriggerBtn" type="button">
+          <span class="icon">🏦</span> بيانات الحساب البنكي
+        </button>
       </div>
       <div class="stats-grid">
         <div class="stat-box">
@@ -578,6 +671,85 @@ function renderApp(d) {
 
   initAnimations();
   initSearch();
+  document.getElementById('bankCardTriggerBtn').addEventListener('click', openBankCard);
+}
+
+/* ===== بطاقة بيانات الحساب البنكي =====
+   البيانات مأخوذة من تبويب "نظرة عامة" في ملف الإكسل. عند تغيّر رقم الحساب/الآيبان مستقبلاً،
+   يكفي تحديث القيم الثلاث أدناه. */
+const BANK_INFO = {
+  fundName: "صلة وإحسان",
+  bankName: "مصرف الراجحي",
+  accountNumber: "680608010992235",
+  iban: "SA9680000680608010992235"
+};
+
+function openBankCard() {
+  const mount = document.getElementById('bankCardMount');
+  mount.innerHTML = `
+    <div class="bank-card-overlay" id="bankCardOverlay">
+      <div class="bank-card-wrap">
+        <button class="bank-card-close" id="bankCardCloseBtn" aria-label="إغلاق">×</button>
+        <div class="bank-card">
+          <div class="bank-card-top">
+            <div>
+              <div class="bank-card-bank"><span class="logo">🏦</span> ${escapeHtml(BANK_INFO.bankName)}</div>
+              <div class="bank-card-fundlabel">حساب الصندوق</div>
+            </div>
+          </div>
+          <div class="bank-card-chip"></div>
+          <div class="bank-card-fundname">${escapeHtml(BANK_INFO.fundName)}</div>
+
+          <div class="bank-card-iban-label">رقم الآيبان (IBAN)</div>
+          <div class="bank-card-iban-row">
+            <div class="bank-card-iban">${escapeHtml(BANK_INFO.iban)}</div>
+            <button class="bank-card-copy" id="copyIbanBtn" type="button">نسخ</button>
+          </div>
+
+          <div class="bank-card-footer">
+            <div class="bank-card-accountno">رقم الحساب<br><span>${escapeHtml(BANK_INFO.accountNumber)}</span></div>
+            <button class="bank-card-copy" id="copyAccountBtn" type="button">نسخ الرقم</button>
+          </div>
+        </div>
+        <div class="bank-card-note">اضغط على "نسخ" لنسخ رقم الآيبان قبل إجراء التحويل البنكي.</div>
+      </div>
+    </div>
+  `;
+  document.getElementById('bankCardCloseBtn').addEventListener('click', closeBankCard);
+  document.getElementById('bankCardOverlay').addEventListener('click', (e) => {
+    if (e.target.id === 'bankCardOverlay') closeBankCard();
+  });
+  document.getElementById('copyIbanBtn').addEventListener('click', (e) => copyBankText(BANK_INFO.iban, e.currentTarget, 'نسخ'));
+  document.getElementById('copyAccountBtn').addEventListener('click', (e) => copyBankText(BANK_INFO.accountNumber, e.currentTarget, 'نسخ الرقم'));
+}
+
+function closeBankCard() {
+  document.getElementById('bankCardMount').innerHTML = '';
+}
+
+function copyBankText(text, btnEl, resetLabel) {
+  const done = () => {
+    btnEl.textContent = 'تم النسخ ✓';
+    btnEl.classList.add('copied');
+    setTimeout(() => { btnEl.textContent = resetLabel; btnEl.classList.remove('copied'); }, 1600);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+
+function fallbackCopy(text, done) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try { document.execCommand('copy'); done(); } catch (e) { /* silent */ }
+  document.body.removeChild(ta);
 }
 
 function initAnimations() {
