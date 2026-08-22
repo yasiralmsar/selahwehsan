@@ -535,6 +535,13 @@ function escapeHtml(str) {
     .replace(/'/g, "&#39;");
 }
 
+function bindOverlayClose(overlayId, closeBtnId, closeFn) {
+  document.getElementById(closeBtnId).addEventListener('click', closeFn);
+  document.getElementById(overlayId).addEventListener('click', (e) => {
+    if (e.target.id === overlayId) closeFn();
+  });
+}
+
 async function loadData() {
   try {
     const response = await fetch(API_URL);
@@ -555,6 +562,17 @@ function fmt(num) {
   return Number(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+function memberRowHtml(m, idx, animated) {
+  const style = animated ? ` style="animation: fadeInSlide 0.4s ease ${idx * 0.02}s forwards;"` : '';
+  return `
+    <tr${style}>
+      <td class="name">${escapeHtml(m.name)}</td>
+      <td><span class="pill ${m.status === 'ok' ? 'ok' : 'late'}">${m.status === 'ok' ? 'منتظم' : 'متأخر'}</span></td>
+      <td style="text-align: left; font-weight: 700; color: #8a6d2f; text-shadow: 0 1px 0 rgba(255,255,255,0.5);">${fmt(m.amount)} ﷼</td>
+    </tr>
+  `;
+}
+
 function renderApp(d) {
   allMembersData = d.members;
 
@@ -567,19 +585,13 @@ function renderApp(d) {
         return `<div class="late-item" style="animation-delay: ${idx * 0.08}s"><span>${escapeHtml(m.name)}</span> <span class="tag-group"><span class="tag">متأخر</span>${cyclesTag}</span></div>`;
       }).join('');
 
-  const rowsHtml = d.members.map((m, idx) => `
-    <tr style="animation: fadeInSlide 0.4s ease ${idx * 0.02}s forwards;">
-      <td class="name">${escapeHtml(m.name)}</td>
-      <td><span class="pill ${m.status === 'ok' ? 'ok' : 'late'}">${m.status === 'ok' ? 'منتظم' : 'متأخر'}</span></td>
-      <td style="text-align: left; font-weight: 700; color: #8a6d2f; text-shadow: 0 1px 0 rgba(255,255,255,0.5);">${fmt(m.amount)} ﷼</td>
-    </tr>
-  `).join('');
+  const rowsHtml = d.members.map((m, idx) => memberRowHtml(m, idx, true)).join('');
 
   const expensesRowsHtml = d.expensesList.map((e, idx) => `
     <tr style="animation: fadeInSlide 0.4s ease ${idx * 0.03}s forwards;">
       <td style="text-align: right; color: #4a5a6b;">${escapeHtml(e.date)}</td>
       <td style="text-align: right; font-weight:500; color: #2c3e50;">${escapeHtml(e.description)}</td>
-      <td style="text-align: left; font-weight: 700; color: #c0392b;">${e.amount.toLocaleString('en-US')} ﷼</td>
+      <td style="text-align: left; font-weight: 700; color: #c0392b;">${fmt(e.amount)} ﷼</td>
     </tr>
   `).join('');
 
@@ -628,7 +640,7 @@ function renderApp(d) {
     <section class="reveal">
       <div class="section-header"><h2>كشف الحسابات المفصل للأعضاء</h2></div>
       <input type="text" id="searchInput" class="search-input" placeholder="ابحث عن اسم عضو أو حالة (منتظم/متأخر)...">
-      <div class="table-wrapper table-container-mobile">
+      <div class="table-container-mobile">
         <table>
           <thead>
             <tr>
@@ -645,7 +657,7 @@ function renderApp(d) {
     ${d.expensesList.length > 0 ? `
     <section class="reveal">
       <div class="section-header"><h2>سجل المصروفات (السحوبات)</h2></div>
-      <div class="table-wrapper table-container-mobile">
+      <div class="table-container-mobile">
         <table>
           <thead>
             <tr>
@@ -707,10 +719,7 @@ function openBankCard() {
       </div>
     </div>
   `;
-  document.getElementById('bankCardCloseBtn').addEventListener('click', closeBankCard);
-  document.getElementById('bankCardOverlay').addEventListener('click', (e) => {
-    if (e.target.id === 'bankCardOverlay') closeBankCard();
-  });
+  bindOverlayClose('bankCardOverlay', 'bankCardCloseBtn', closeBankCard);
   document.getElementById('copyIbanBtn').addEventListener('click', (e) => copyBankText(BANK_INFO.iban, e.currentTarget, 'نسخ'));
   document.getElementById('copyAccountBtn').addEventListener('click', (e) => copyBankText(BANK_INFO.accountNumber, e.currentTarget, 'نسخ الرقم'));
 }
@@ -796,13 +805,7 @@ function initSearch() {
       return;
     }
     
-    tbody.innerHTML = filtered.map((m, i) => `
-      <tr>
-        <td class="name" style="font-weight: 700; color: #2c3e50;">${escapeHtml(m.name)}</td>
-        <td><span class="pill ${m.status === 'ok' ? 'ok' : 'late'}">${m.status === 'ok' ? 'منتظم' : 'متأخر'}</span></td>
-        <td style="text-align: left; font-weight: 700; color: #8a6d2f; text-shadow: 0 1px 0 rgba(255,255,255,0.5);">${Number(m.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })} ﷼</td>
-      </tr>
-    `).join('');
+    tbody.innerHTML = filtered.map((m, i) => memberRowHtml(m, i, false)).join('');
   });
 }
 
@@ -820,8 +823,7 @@ if (window.pdfjsLib) {
     "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 }
 
-// نفس رابط سكربت Google Apps Script المستخدم لجلب البيانات (doGet) يُستخدم أيضاً لاستقبالها (doPost)
-const TRANSFER_API_URL = API_URL;
+// ملاحظة: نفس رابط سكربت Google Apps Script المستخدم لجلب البيانات (doGet) يُستخدم أيضاً لاستقبالها (doPost) — API_URL نفسه
 
 // أنواع الحوالات كما تظهر فعلياً في كشوفات الراجحي (مطابقة لنص الكشف تماماً)
 // التصنيف مبسّط لفئتين فقط بناءً على طلب الإدارة
@@ -919,7 +921,7 @@ function openAdminPanel() {
     <div class="admin-overlay" id="adminOverlay">
       <div class="admin-modal">
         <button class="admin-close" id="adminCloseBtn" aria-label="إغلاق">×</button>
-        <h3>لوحة التحكم — رفع كشف حساب <span style="font-size:12px;color:var(--text-muted);font-weight:400;">(v9)</span></h3>
+        <h3>لوحة التحكم — رفع كشف حساب</h3>
 
         <div class="admin-field">
           <label>مفتاح المشرف (Admin Key)</label>
@@ -941,10 +943,7 @@ function openAdminPanel() {
       </div>
     </div>
   `;
-  document.getElementById('adminCloseBtn').addEventListener('click', closeAdminPanel);
-  document.getElementById('adminOverlay').addEventListener('click', (e) => {
-    if (e.target.id === 'adminOverlay') closeAdminPanel();
-  });
+  bindOverlayClose('adminOverlay', 'adminCloseBtn', closeAdminPanel);
   document.getElementById('adminKeyInput').addEventListener('input', (e) => {
     adminKeyValue = e.target.value;
   });
@@ -1363,7 +1362,7 @@ async function handleSubmitRows() {
     };
     // ملاحظة: نرسل بدون تحديد Content-Type كـ application/json لتفادي CORS preflight
     // مع Google Apps Script — السكربت يقرأ الجسم كنص ثم يحوّله JSON بنفسه.
-    const resp = await fetch(TRANSFER_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+    const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await resp.json();
 
     if (result.success) {
