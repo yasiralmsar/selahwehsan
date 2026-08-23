@@ -375,7 +375,11 @@
   .admin-field { margin-bottom: 16px; }
   .admin-field label { display: block; font-weight: 700; color: var(--text-main); margin-bottom: 6px; font-size: 14px; }
   .admin-field input[type="password"],
-  .admin-field input[type="file"] {
+  .admin-field input[type="file"],
+  .admin-field input[type="text"],
+  .admin-field input[type="email"],
+  .admin-field input[type="tel"],
+  .admin-field select {
     width: 100%; padding: 12px 14px; border-radius: 10px;
     border: 1px solid rgba(11,46,35,0.18); font-family: inherit; font-size: 15px;
     background: #fff;
@@ -504,8 +508,8 @@
 
 <div class="dashboard-wrapper">
   <header class="reveal">
-    <h1>صندوق صلة وإحسان العائلي</h1>
-    <p>تكافل .. عطاء .. استدامة</p>
+    <h1 id="fundTitleEl">صندوق صلة وإحسان العائلي</h1>
+    <p id="fundTaglineEl">تكافل .. عطاء .. استدامة</p>
   </header>
 
   <div class="container" id="appContainer">
@@ -522,7 +526,32 @@
 <div id="bankCardMount"></div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbzXfcGvNVt4cJy5svPGxugGD8YGv_OyEeCE-Ee9-E34FEXDX30vfZP4tBwBruNG-DXIvg/exec";
+/* =========================================================================
+   FAMILY_CONFIG — الإعدادات الوحيدة الخاصة بهذه العائلة على مستوى الموقع.
+   عند تركيب نسخة لعائلة جديدة، عدّل هذا الكائن فقط — لا تلمس أي كود آخر
+   في هذا الملف. القيم المقابلة في Apps Script (Code.gs) تُضبط بشكل منفصل
+   عبر Config.gs هناك.
+   ========================================================================= */
+const FAMILY_CONFIG = {
+  fundName: "صندوق صلة وإحسان العائلي",
+  fundTagline: "تكافل .. عطاء .. استدامة",
+
+  // رابط نشر Apps Script الخاص بهذه العائلة (Deploy → Web app)
+  apiUrl: "https://script.google.com/macros/s/AKfycbzXfcGvNVt4cJy5svPGxugGD8YGv_OyEeCE-Ee9-E34FEXDX30vfZP4tBwBruNG-DXIvg/exec",
+
+  // بروفايل البنك المستخدم لتحليل كشف الحساب تلقائيًا (راجع BANK_PROFILES أدناه)
+  bankProfile: "alrajhi",
+
+  // بيانات الحساب البنكي المعروضة في بطاقة "بيانات الحساب البنكي" بالموقع
+  bankAccount: {
+    fundName: "صلة وإحسان",
+    bankName: "مصرف الراجحي",
+    accountNumber: "680608010992235",
+    iban: "SA9680000680608010992235"
+  }
+};
+
+const API_URL = FAMILY_CONFIG.apiUrl; // اسم مستعار قديم — يبقى للتوافق مع بقية الكود أدناه
 
 let allMembersData = [];
 
@@ -575,6 +604,10 @@ function memberRowHtml(m, idx, animated) {
 
 function renderApp(d) {
   allMembersData = d.members;
+  MEMBERS = d.members.map(m => m.name);
+  MEMBER_ENGLISH = d.members
+    .filter(m => m.englishName)
+    .map(m => ({ name: m.name, words: m.englishName.toUpperCase().split(/\s+/).filter(Boolean) }));
 
   const lateListHtml = d.lateMembers.length === 0
     ? '<div class="empty-late reveal">✓ جميع الأعضاء منتظمون في السداد لهذا الشهر.</div>'
@@ -679,14 +712,8 @@ function renderApp(d) {
 }
 
 /* ===== بطاقة بيانات الحساب البنكي =====
-   البيانات مأخوذة من تبويب "نظرة عامة" في ملف الإكسل. عند تغيّر رقم الحساب/الآيبان مستقبلاً،
-   يكفي تحديث القيم الثلاث أدناه. */
-const BANK_INFO = {
-  fundName: "صلة وإحسان",
-  bankName: "مصرف الراجحي",
-  accountNumber: "680608010992235",
-  iban: "SA9680000680608010992235"
-};
+   القيم الفعلية تُضبط مركزيًا في FAMILY_CONFIG.bankAccount أعلى الملف. */
+const BANK_INFO = FAMILY_CONFIG.bankAccount;
 
 function openBankCard() {
   const mount = document.getElementById('bankCardMount');
@@ -809,6 +836,15 @@ function initSearch() {
   });
 }
 
+function applyBranding() {
+  document.title = FAMILY_CONFIG.fundName;
+  const titleEl = document.getElementById('fundTitleEl');
+  const taglineEl = document.getElementById('fundTaglineEl');
+  if (titleEl) titleEl.textContent = FAMILY_CONFIG.fundName;
+  if (taglineEl) taglineEl.textContent = FAMILY_CONFIG.fundTagline;
+}
+applyBranding();
+
 loadData();
 </script>
 
@@ -825,22 +861,62 @@ if (window.pdfjsLib) {
 
 // ملاحظة: نفس رابط سكربت Google Apps Script المستخدم لجلب البيانات (doGet) يُستخدم أيضاً لاستقبالها (doPost) — API_URL نفسه
 
-// أنواع الحوالات كما تظهر فعلياً في كشوفات الراجحي (مطابقة لنص الكشف تماماً)
-// التصنيف مبسّط لفئتين فقط بناءً على طلب الإدارة
+// أنواع الحوالات — تصنيف عام بفئتين (تحويل يدوي / أمر مستديم)، صالح لأغلب البنوك السعودية
 const TRANSFER_TYPES = ["تحويل", "أمر مستديم"];
 
-// نطاقات إحداثي X الافتراضية (تُستخدم فقط إذا تعذّر اكتشاف صف العناوين تلقائياً في الملف)
-const DEFAULT_COLS = { balance: 75, credit: 167, debit: 255, date: 508 };
+/* =========================================================================
+   BANK_PROFILES — طبقة تجريد لتحليل كشف الحساب حسب البنك.
+   كل عملية سحب/إيداع في PDF.js تُقرأ كعناصر نصية بإحداثيات (x,y) دون أي
+   بنية جدولية حقيقية؛ لذلك كل بنك يحتاج "بروفايل" يحدد:
+     - defaultCols: إحداثيات الأعمدة الافتراضية (تُستخدم فقط إن تعذّر
+       اكتشاف صف العناوين تلقائيًا في الصفحة).
+     - columnLabels: النصوص التي تُستخدم لاكتشاف عناوين الأعمدة ديناميكيًا.
+     - isTypeLine / isFooterLine: كيفية تمييز سطر "نوع العملية" عن سطر
+       تذييل الصفحة عن سطر ملاحظة عادية.
+   لإضافة بنك جديد: أضف مفتاحًا جديدًا هنا بنفس البنية، ثم اضبط
+   FAMILY_CONFIG.bankProfile على مفتاحه — لا حاجة لتعديل أي كود آخر.
+   ========================================================================= */
+const BANK_PROFILES = {
+  alrajhi: {
+    label: "مصرف الراجحي",
+    defaultCols: { balance: 75, credit: 167, debit: 255, date: 508 },
+    columnLabels: { balance: "الرصيد", credit: "دائن", debit: "مدين", date: "التاريخ" },
+    colTolerance: 45,
+    arabicLabelStop: ["الوقت", "ملاحظة"],
+    isTypeLine: (text) =>
+      /تحويل|مستديم|حوالة|حوالات|إيداع|ايداع/.test(text) && !/[A-Za-z]/.test(text) && !/\d/.test(text),
+    isFooterLine: (text) => /الوثيقة|مسؤولية المحافظة|confidential|holder/i.test(text)
+  }
 
-// أعضاء الصندوق الـ27 بالضبط كما في ملف الإكسل (تبويب "ملخص الأعضاء") — الاسم الأول + اسم الأب فقط
-const MEMBERS = [
-  "عبدالله مطير", "مطير عبدالله", "سعود عبدالله", "محمد عبيدالله", "مساعد عبدالله",
-  "فواز عبيدالله", "فيصل عبدالله", "سعد عبدالله", "عبدالهادي عبدالله", "سلمان عبدالله",
-  "صلاح عبيدالله", "سلطان عبيدالله", "أحمد عبيدالله", "عبدالعزيز عبيدالله", "فهد عبدالله",
-  "عبدالمجيد عبيدالله", "رائد عبدالله", "ياسر عبيدالله", "ثامر عبدالله", "محمد عبدالله",
-  "فارس مطير", "مشعل عبدالله", "مشاري عبيدالله", "خالد عبدالله", "بندر عبدالله",
-  "عبدالرحمن عبدالله", "عبدالرحمن مطير"
-];
+  // مثال لإضافة بنك آخر مستقبلاً (عدّل الإحداثيات والتسميات فعليًا بعد فحص كشف حقيقي منه):
+  // alahli: {
+  //   label: "البنك الأهلي السعودي",
+  //   defaultCols: { balance: 80, credit: 180, debit: 270, date: 500 },
+  //   columnLabels: { balance: "الرصيد", credit: "دائن", debit: "مدين", date: "التاريخ" },
+  //   colTolerance: 45,
+  //   arabicLabelStop: ["الوقت", "ملاحظة"],
+  //   isTypeLine: (text) => /تحويل|مستديم|حوالة/.test(text) && !/[A-Za-z]/.test(text) && !/\d/.test(text),
+  //   isFooterLine: (text) => /سري|confidential/i.test(text)
+  // }
+};
+
+function getActiveBankProfile() {
+  const profile = BANK_PROFILES[FAMILY_CONFIG.bankProfile];
+  if (!profile) {
+    console.error('بروفايل البنك "' + FAMILY_CONFIG.bankProfile + '" غير معرَّف في BANK_PROFILES — تم الرجوع إلى "alrajhi".');
+    return BANK_PROFILES.alrajhi;
+  }
+  return profile;
+}
+
+// نطاقات إحداثي X الافتراضية للبنك النشط حاليًا (تُستخدم فقط إذا تعذّر اكتشاف صف العناوين تلقائيًا)
+const DEFAULT_COLS = getActiveBankProfile().defaultCols;
+
+// أعضاء الصندوق — تُملأ ديناميكيًا من بيانات لوحة المعلومات نفسها (renderApp) وتتحدث تلقائيًا مع أي عضو جديد
+let MEMBERS = [];
+
+// الاسم الإنجليزي المُدخل اختياريًا عند تسجيل كل عضو (لمطابقة "أمر مستديم" ديناميكيًا) — [{ name, words }]
+let MEMBER_ENGLISH = [];
 
 // جدول تحويل الأسماء العربية إلى نظائرها اللاتينية الشائعة (لمطابقة "أمر مستديم" الذي يظهر بالإنجليزية فقط في الكشف)
 const TRANSLIT = {
@@ -876,7 +952,7 @@ function normArabic(s) {
   return String(s).replace(/\s+/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه');
 }
 
-// مطابقة الاسم العربي المستخرج من الكشف (كلمة واحدة أو أكثر) مع أحد الأعضاء الـ27
+// مطابقة الاسم العربي المستخرج من الكشف (كلمة واحدة أو أكثر) مع أحد الأعضاء
 function matchMemberArabic(arabicWords) {
   if (!arabicWords || !arabicWords.length) return null;
   const joined = normArabic(arabicWords.join(''));
@@ -893,16 +969,29 @@ function matchMemberArabic(arabicWords) {
   return null; // لا يوجد تطابق فريد (أو التبس مع أكثر من عضو) — يُترك للمشرف ليختاره يدوياً
 }
 
-// مطابقة الاسم اللاتيني (حالة "أمر مستديم" حيث لا يظهر اسم عربي في الكشف إطلاقاً) عبر جدول التحويل الصوتي
+// مطابقة الاسم اللاتيني (حالة "أمر مستديم" حيث لا يظهر اسم عربي في الكشف إطلاقاً)
+// المحاولة الأولى: الاسم الإنجليزي المُدخل يدويًا عند تسجيل العضو (ديناميكي، يعمل لأي عضو جديد)
+// المحاولة الثانية (احتياطية): جدول التحويل الصوتي الثابت TRANSLIT (للأعضاء الأصليين فقط)
 function matchMemberLatin(latinWords) {
-  if (!latinWords || latinWords.length < 2) return null;
-  const w1 = latinWords[0].toUpperCase(), w2 = latinWords[1].toUpperCase();
-  const candidates = MEMBERS.filter(m => {
-    const parts = m.split(' ');
-    const v1 = TRANSLIT[parts[0]] || [], v2 = TRANSLIT[parts[1]] || [];
-    return v1.indexOf(w1) !== -1 && v2.indexOf(w2) !== -1;
-  });
-  return candidates.length === 1 ? candidates[0] : null;
+  if (!latinWords || !latinWords.length) return null;
+  const upperWords = latinWords.map(w => w.toUpperCase());
+
+  const dynCandidates = MEMBER_ENGLISH.filter(e =>
+    e.words.length > 0 && e.words.every(w => upperWords.indexOf(w) !== -1)
+  );
+  if (dynCandidates.length === 1) return dynCandidates[0].name;
+
+  if (latinWords.length >= 2) {
+    const w1 = upperWords[0], w2 = upperWords[1];
+    const candidates = MEMBERS.filter(m => {
+      const parts = m.split(' ');
+      const v1 = TRANSLIT[parts[0]] || [], v2 = TRANSLIT[parts[1]] || [];
+      return v1.indexOf(w1) !== -1 && v2.indexOf(w2) !== -1;
+    });
+    if (candidates.length === 1) return candidates[0];
+  }
+
+  return null;
 }
 
 function matchMember(arabicWords, latinWords) {
@@ -940,6 +1029,39 @@ function openAdminPanel() {
 
         <div id="adminMsg"></div>
         <div id="reviewArea"></div>
+
+        <hr style="margin:26px 0;border:none;border-top:1px solid rgba(11,46,35,0.12);">
+
+        <h3>إضافة عضو جديد</h3>
+        <div class="admin-field">
+          <label>اسم العضو (الاسم الأول واسم الأب فقط، كما هو معتمد في الملف)</label>
+          <input type="text" id="newMemberName" placeholder="مثال: خالد عبدالله" autocomplete="off">
+        </div>
+        <div class="admin-field">
+          <label>نوع العملية المتوقع (اختياري)</label>
+          <select id="newMemberOpType">
+            <option value="">— غير محدد —</option>
+            <option value="تحويل">تحويل</option>
+            <option value="أمر مستديم">أمر مستديم</option>
+          </select>
+        </div>
+        <div class="admin-field">
+          <label>البريد الإلكتروني (اختياري)</label>
+          <input type="email" id="newMemberEmail" placeholder="example@email.com" autocomplete="off">
+        </div>
+        <div class="admin-field">
+          <label>رقم الجوال (اختياري)</label>
+          <input type="tel" id="newMemberPhone" placeholder="05xxxxxxxx" autocomplete="off">
+        </div>
+        <div class="admin-field">
+          <label>الاسم بالإنجليزي كما يظهر في كشف الحساب (اختياري)</label>
+          <input type="text" id="newMemberEnglish" placeholder="KHALID ABDULLAH" autocomplete="off" style="direction:ltr; text-align:left;">
+          <div class="admin-note">يُستخدم لمطابقة حوالات "أمر مستديم" تلقائيًا (تظهر بالإنجليزية فقط في كشف الراجحي). اتركه فارغًا إن لم تكن تعرفه.</div>
+        </div>
+        <div class="admin-actions">
+          <button class="admin-btn" id="addMemberBtn">إضافة العضو</button>
+        </div>
+        <div id="addMemberMsg"></div>
       </div>
     </div>
   `;
@@ -948,11 +1070,73 @@ function openAdminPanel() {
     adminKeyValue = e.target.value;
   });
   document.getElementById('parsePdfBtn').addEventListener('click', handleParsePdf);
+  document.getElementById('addMemberBtn').addEventListener('click', handleAddMember);
 }
 
 function closeAdminPanel() {
   document.getElementById('adminMount').innerHTML = '';
   reviewRows = [];
+}
+
+async function handleAddMember() {
+  const nameInput = document.getElementById('newMemberName');
+  const opTypeInput = document.getElementById('newMemberOpType');
+  const emailInput = document.getElementById('newMemberEmail');
+  const phoneInput = document.getElementById('newMemberPhone');
+  const englishInput = document.getElementById('newMemberEnglish');
+  const msgEl = document.getElementById('addMemberMsg');
+
+  const name = nameInput.value.trim();
+  if (!adminKeyValue) {
+    msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً (أعلى النموذج).</div>';
+    return;
+  }
+  if (!name) {
+    msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال اسم العضو.</div>';
+    return;
+  }
+  if (MEMBERS.indexOf(name) !== -1) {
+    msgEl.innerHTML = '<div class="admin-msg error">هذا الاسم موجود مسبقًا ضمن أعضاء الصندوق.</div>';
+    return;
+  }
+
+  const addBtn = document.getElementById('addMemberBtn');
+  addBtn.disabled = true;
+  msgEl.innerHTML = '<div class="admin-msg">جاري الإضافة...</div>';
+
+  try {
+    const payload = {
+      action: 'addTransfers',
+      adminKey: adminKeyValue,
+      newMembers: [{
+        name: name,
+        opType: opTypeInput.value || '',
+        email: emailInput.value.trim(),
+        phone: phoneInput.value.trim(),
+        englishName: englishInput.value.trim().toUpperCase()
+      }]
+    };
+    const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+    const result = await resp.json();
+
+    if (result.success && result.addedMembers > 0) {
+      msgEl.innerHTML = '<div class="admin-msg success">تمت إضافة العضو بنجاح، وأصبح متاحًا في قائمة رفع الكشوفات.</div>';
+      nameInput.value = '';
+      opTypeInput.value = '';
+      emailInput.value = '';
+      phoneInput.value = '';
+      englishInput.value = '';
+      loadData();
+    } else if (result.success && result.skippedDuplicates > 0) {
+      msgEl.innerHTML = '<div class="admin-msg error">لم تتم الإضافة: الاسم موجود مسبقًا في الملف.</div>';
+    } else {
+      msgEl.innerHTML = '<div class="admin-msg error">فشلت الإضافة: ' + escapeHtml(result.error || 'خطأ غير معروف') + '</div>';
+    }
+  } catch (err) {
+    msgEl.innerHTML = '<div class="admin-msg error">تعذّر الاتصال بالسكربت: ' + escapeHtml(err.message) + '</div>';
+  } finally {
+    addBtn.disabled = false;
+  }
 }
 
 function showAdminMsg(text, type) {
@@ -971,15 +1155,13 @@ function fixBidi(str) {
   return str.normalize('NFKC');
 }
 
-const ARABIC_LABEL_STOP = new Set(['الوقت', 'ملاحظة']);
-
 // يستخرج كلمات عربية (من اليمين لليسار) ولاتينية (من اليسار لليمين) مباشرة من عناصر السطر
 // المُوضعة — كل لغة تُرتَّب حسب اتجاه قراءتها الصحيح بغض النظر عن اتجاه السطر العام
-function wordsFromBandItems(bandItems) {
+function wordsFromBandItems(bandItems, arabicLabelStopSet) {
   const arabicItems = bandItems.filter(i => /[\u0600-\u06FF]/.test(i.text));
   const arabicWords = [...arabicItems].sort((a, b) => b.x - a.x)
     .flatMap(i => (i.text.match(/[\u0600-\u06FF]+/g) || []))
-    .filter(w => !ARABIC_LABEL_STOP.has(w));
+    .filter(w => !arabicLabelStopSet.has(w));
 
   const latinItems = bandItems.filter(i => /[A-Za-z]/.test(i.text));
   const latinWords = [...latinItems].sort((a, b) => a.x - b.x)
@@ -993,8 +1175,13 @@ function classifyType(typeText) {
   return /مستديم/.test(typeText || '') ? 'أمر مستديم' : 'تحويل';
 }
 
-/* ---------- 2) قراءة ملف PDF وتحويله إلى عمليات (تاريخ / اسم / نوع / مبلغ) ---------- */
+/* ---------- 2) قراءة ملف PDF وتحويله إلى عمليات (تاريخ / اسم / نوع / مبلغ) ----------
+   منطق القراءة الهندسي (تجميع عناصر PDF.js إلى أسطر، تصنيف الأسطر، تفكيك الكلمات)
+   عام ويصلح لأي بنك. الأجزاء الخاصة ببنك معين فقط (مواقع الأعمدة، عبارات نوع العملية،
+   تذييل الصفحة) تُؤخَذ من BANK_PROFILES[FAMILY_CONFIG.bankProfile] عبر getActiveBankProfile(). */
 async function extractTransactionsFromPdf(file) {
+  const profile = getActiveBankProfile();
+  const arabicLabelStopSet = new Set(profile.arabicLabelStop || []);
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
   const transactions = [];
@@ -1035,20 +1222,22 @@ async function extractTransactionsFromPdf(file) {
 
     // اكتشاف ديناميكي لمواقع الأعمدة من صف العناوين الفعلي في هذه الصفحة (أدق من إحداثيات ثابتة)
     // نستخدم "يحتوي على" بدل التطابق التام لتحمّل أي مسافات أو رموز غير مرئية إضافية
+    const L = profile.columnLabels;
     let cols = null;
     for (const band of bands) {
       const findLabel = (label) => band.find(i => i.text.indexOf(label) !== -1);
-      const bal = findLabel('الرصيد'), cr = findLabel('دائن'), db = findLabel('مدين'), dt = findLabel('التاريخ');
+      const bal = findLabel(L.balance), cr = findLabel(L.credit), db = findLabel(L.debit), dt = findLabel(L.date);
       if (bal && cr && db && dt) {
         cols = { balance: bal.x, credit: cr.x, debit: db.x, date: dt.x };
         break;
       }
     }
     if (cols) pageDebug.calibrated = true;
-    if (!cols) cols = lastCols || DEFAULT_COLS;
+    if (!cols) cols = lastCols || profile.defaultCols;
     lastCols = cols;
     pageDebug.colsUsed = cols;
-    const near = (x, center) => Math.abs(x - center) <= 45;
+    const tolerance = profile.colTolerance || 45;
+    const near = (x, center) => Math.abs(x - center) <= tolerance;
 
     // تصنيف كل "سطر" كمرساة (تاريخ+مبالغ) أو غير ذلك، مع معرفة إن كان السطر التالي مرساة
     // نبحث عن نمط التاريخ داخل النص (لا نشترط تطابقاً تاماً) لتحمّل أي التصاق بنص آخر
@@ -1061,13 +1250,12 @@ async function extractTransactionsFromPdf(file) {
 
     let active = null; // السجل الحالي الذي يستقبل أسطر الملاحظات التالية (حوالة أو سحب)
     let pendingTypeText = '';
-    // سطر "نوع العملية" الحقيقي هو دائماً عربي خالص ويحوي إحدى هذه الكلمات المفتاحية —
+    // سطر "نوع العملية" الحقيقي يُحدَّد عبر profile.isTypeLine (خاص بكل بنك) —
     // أي سطر آخر (حتى لو جاء بموضع مشابه) يُعامَل كملاحظة تُضاف للعملية الحالية.
     // هذا أكثر ثباتاً من الاعتماد على ترتيب/تجاور الأسطر، الذي قد يختلف بين نسخ الكشف.
-    const isTypeBandText = (text) =>
-      /تحويل|مستديم|حوالة|حوالات|إيداع|ايداع/.test(text) && !/[A-Za-z]/.test(text) && !/\d/.test(text);
-    // نص تذييل الصفحة القياسي في كشوفات الراجحي — يُستبعد كلياً من الملاحظات حتى لا يلتصق بآخر عملية في الصفحة
-    const isFooterBoilerplate = (text) => /الوثيقة|مسؤولية المحافظة|confidential|holder/i.test(text);
+    const isTypeBandText = profile.isTypeLine;
+    // نص تذييل الصفحة القياسي لهذا البنك — يُستبعد كلياً من الملاحظات حتى لا يلتصق بآخر عملية في الصفحة
+    const isFooterBoilerplate = profile.isFooterLine;
 
     flags.forEach((f) => {
       if (f.isAnchor) {
@@ -1116,7 +1304,7 @@ async function extractTransactionsFromPdf(file) {
           const consumed = new Set([dateItem, creditItem, debitItem, balanceItem].filter(Boolean));
           const extraItems = f.band.filter(i => !consumed.has(i) && i.text.trim().toUpperCase() !== 'SAR');
           if (extraItems.length) {
-            const { arabicWords, latinWords } = wordsFromBandItems(extraItems);
+            const { arabicWords, latinWords } = wordsFromBandItems(extraItems, arabicLabelStopSet);
             active.arabicWords.push(...arabicWords);
             active.latinWords = active.latinWords.concat(latinWords);
             active.rawNote += ' ' + extraItems.map(i => i.text).join(' ');
@@ -1130,7 +1318,7 @@ async function extractTransactionsFromPdf(file) {
         } else if (isTypeBandText(text)) {
           pendingTypeText = text;
         } else if (active) {
-          const { arabicWords, latinWords } = wordsFromBandItems(f.band);
+          const { arabicWords, latinWords } = wordsFromBandItems(f.band, arabicLabelStopSet);
           active.arabicWords.push(...arabicWords);
           active.latinWords = active.latinWords.concat(latinWords);
           active.rawNote += ' ' + text;
