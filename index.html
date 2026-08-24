@@ -352,15 +352,51 @@
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
 
+  /* ===== أيقونة الشرح ===== */
+  .info-trigger {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: rgba(197, 160, 89, 0.2); border: 1px solid rgba(197, 160, 89, 0.45);
+    color: var(--secondary); font-weight: 800; font-size: 13px; font-style: normal;
+    cursor: pointer; margin-top: 10px; line-height: 1;
+    padding: 0;
+  }
+  .info-tooltip-overlay {
+    position: fixed; inset: 0; z-index: 899; background: rgba(11, 22, 18, 0.28);
+  }
+  .info-tooltip {
+    position: fixed; z-index: 900; max-width: 320px; width: calc(100% - 48px);
+    left: 50%; transform: translateX(-50%); top: 130px;
+    background: linear-gradient(135deg, #f8f6f1 0%, #eae7e2 100%);
+    border: 1px solid rgba(197, 160, 89, 0.35);
+    border-radius: 16px; padding: 20px 22px 18px;
+    box-shadow: 0 16px 40px rgba(11, 46, 35, 0.25);
+    font-size: 14px; line-height: 1.9; color: var(--text-main);
+  }
+  .info-tooltip p { margin: 0 0 8px; }
+  .info-tooltip p:last-child { margin-bottom: 0; }
+  .info-tooltip-close {
+    position: absolute; top: 6px; left: 8px; background: none; border: none;
+    font-size: 20px; color: var(--text-muted); cursor: pointer;
+    width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;
+  }
+  .info-tooltip[hidden], .info-tooltip-overlay[hidden] { display: none; }
+
   /* ===== قائمة تنقّل ثابتة ===== */
-  .quick-nav {
+  /* العنصر اللاصق (sticky) بدون أي فلتر عليه — وتأثير الزجاج على طبقة
+     داخلية عادية (position: static)، لأن دمج backdrop-filter مباشرة مع
+     position: sticky له قصور معروف في Safari/iOS يمنع ظهور تأثير الزجاج. */
+  .quick-nav-sticky {
     display: none;
     position: sticky;
     top: 0;
     z-index: 60;
+  }
+  .quick-nav {
+    display: flex;
     gap: 6px;
     max-width: 940px;
-    margin: 0 auto 8px;
+    margin: 0 auto;
     padding: 10px 12px;
     background: rgba(234, 231, 226, 0.78);
     backdrop-filter: blur(20px) saturate(160%);
@@ -383,12 +419,26 @@
 
   /* ===== سكيلتون التحميل ===== */
   .skeleton-wrap { padding-top: 6px; }
+  .skeleton-loading-text {
+    text-align: center; color: var(--text-muted); font-weight: 700; font-size: 14.5px;
+    margin-bottom: 18px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .skeleton-loading-text::before {
+    content: ''; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--secondary); box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.25);
+    animation: pulseGold 1.3s infinite;
+  }
+  @keyframes pulseGold {
+    0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(197, 160, 89, 0.5); }
+    70% { transform: scale(1); box-shadow: 0 0 0 7px rgba(197, 160, 89, 0); }
+    100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(197, 160, 89, 0); }
+  }
   .skeleton {
-    background: linear-gradient(90deg, rgba(255,255,255,0.22) 25%, rgba(255,255,255,0.42) 50%, rgba(255,255,255,0.22) 75%);
+    background: linear-gradient(90deg, rgba(11,46,35,0.07) 25%, rgba(11,46,35,0.16) 50%, rgba(11,46,35,0.07) 75%);
     background-size: 200% 100%;
     animation: skeletonShimmer 1.4s ease-in-out infinite;
     border-radius: 16px;
-    border: 1px solid rgba(255,255,255,0.3);
+    border: 1px solid rgba(11,46,35,0.1);
   }
   @keyframes skeletonShimmer {
     0% { background-position: 200% 0; }
@@ -610,16 +660,28 @@
   <header class="reveal">
     <h1 id="fundTitleEl">صندوق صلة وإحسان العائلي</h1>
     <p id="fundTaglineEl">تكافل .. عطاء .. استدامة</p>
+    <button id="infoTriggerBtn" class="info-trigger" type="button" aria-label="ما معنى الحالات؟" title="ما معنى الحالات؟">ℹ</button>
   </header>
 
-  <nav class="quick-nav" id="quickNav" aria-label="تنقل سريع">
-    <a href="#lateSection" class="quick-nav-link">المتأخرون</a>
-    <a href="#membersSection" class="quick-nav-link">الأعضاء</a>
-    <a href="#expensesSection" class="quick-nav-link" id="expensesNavLink" style="display:none;">المصروفات</a>
-  </nav>
+  <div id="infoTooltip" class="info-tooltip" hidden>
+    <button class="info-tooltip-close" id="infoTooltipClose" type="button" aria-label="إغلاق">×</button>
+    <p><strong>منتظم</strong> — آخر تحويل للعضو ضمن الدورة الشهرية الحالية.</p>
+    <p><strong>متأخر</strong> — مضت دورة واحدة أو أكثر بدون تحويل جديد.</p>
+    <p><strong>الدورة</strong> — فترة شهرية تمتد من يوم 24 لكل شهر إلى يوم 23 من الشهر التالي.</p>
+  </div>
+  <div id="infoTooltipOverlay" class="info-tooltip-overlay" hidden></div>
+
+  <div class="quick-nav-sticky" id="quickNavSticky">
+    <nav class="quick-nav" id="quickNav" aria-label="تنقل سريع">
+      <a href="#lateSection" class="quick-nav-link">المتأخرون</a>
+      <a href="#membersSection" class="quick-nav-link">الأعضاء</a>
+      <a href="#expensesSection" class="quick-nav-link" id="expensesNavLink" style="display:none;">المصروفات</a>
+    </nav>
+  </div>
 
   <div class="container" id="appContainer">
     <div class="skeleton-wrap">
+      <div class="skeleton-loading-text">جاري مزامنة البيانات...</div>
       <div class="skeleton skeleton-hero"></div>
       <div class="skeleton skeleton-line"></div>
       <div class="skeleton skeleton-row"></div>
@@ -695,6 +757,7 @@ function showErrorState(message) {
   document.getElementById('retryLoadBtn').addEventListener('click', () => {
     document.getElementById('appContainer').innerHTML = `
       <div class="skeleton-wrap">
+        <div class="skeleton-loading-text">جاري مزامنة البيانات...</div>
         <div class="skeleton skeleton-hero"></div>
         <div class="skeleton skeleton-line"></div>
         <div class="skeleton skeleton-row"></div>
@@ -953,9 +1016,10 @@ function initAnimations() {
 }
 
 function initQuickNav() {
+  const navSticky = document.getElementById('quickNavSticky');
   const nav = document.getElementById('quickNav');
-  if (!nav) return;
-  nav.style.display = 'flex';
+  if (!nav || !navSticky) return;
+  navSticky.style.display = 'block';
   const expensesLink = document.getElementById('expensesNavLink');
   if (expensesLink) {
     expensesLink.style.display = document.getElementById('expensesSection') ? '' : 'none';
@@ -1030,8 +1094,22 @@ function applyBranding() {
   if (titleEl) titleEl.textContent = FAMILY_CONFIG.fundName;
   if (taglineEl) taglineEl.textContent = FAMILY_CONFIG.fundTagline;
 }
+function initInfoTooltip() {
+  const btn = document.getElementById('infoTriggerBtn');
+  const tip = document.getElementById('infoTooltip');
+  const overlay = document.getElementById('infoTooltipOverlay');
+  const closeBtn = document.getElementById('infoTooltipClose');
+  if (!btn || !tip || !overlay || !closeBtn) return;
+  function open() { tip.hidden = false; overlay.hidden = false; }
+  function close() { tip.hidden = true; overlay.hidden = true; }
+  btn.addEventListener('click', open);
+  closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', close);
+}
+
 applyBranding();
 initParallax();
+initInfoTooltip();
 loadData();
 </script>
 
