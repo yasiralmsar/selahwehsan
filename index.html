@@ -74,38 +74,47 @@
     padding-top: env(safe-area-inset-top, 0px);
   }
 
+  /* ===== Scroll Reveal (Intersection Observer + CSS Transitions) =====
+     أسلوب مشابه لـ Apple: العنصر مخفي بانزياح بسيط للأسفل، وعند دخوله
+     الشاشة أثناء التمرير تُضاف كلاس "in" عبر JS فتنزلق للأعلى وتتلاشى للظهور.
+     كل عنصر يُلاحَظ مرة واحدة فقط (unobserve بعد الظهور) لأداء أخف. */
   .reveal {
     opacity: 0;
-    transform: translateY(42px) scale(0.958);
-    transition: opacity 0.18s ease-out, transform 0.4s cubic-bezier(.16,1,.3,1);
+    transform: translateY(42px) scale(0.972);
+    transition: opacity 0.75s cubic-bezier(.16,1,.3,1), transform 0.75s cubic-bezier(.16,1,.3,1);
+    transition-delay: var(--reveal-delay, 0s);
     will-change: opacity, transform;
   }
   .reveal.in { opacity: 1; transform: translateY(0) scale(1); }
 
-  .hero-card {
+  /* عناصر داخلية (كروت/صفوف) تبقى مخفية ولا تتحرك إلا بعد ظهور العنصر
+     الأب (reveal.in) — بهذا الشكل يبقى التأثير مرتبطاً بالتمرير الفعلي
+     حتى لو كانت هذه العناصر أسفل الشاشة عند تحميل الصفحة. */
+  .stats-grid .stat-box,
+  .mini-stats-grid .mini-stat,
+  .late-item,
+  .empty-late,
+  table tbody tr {
     opacity: 0;
-    transform: translateY(42px) scale(0.944);
-    animation: heroIn 0.5s cubic-bezier(.22,1,.36,1) 0.05s forwards;
   }
-  @keyframes heroIn {
-    to { opacity: 1; transform: translateY(0) scale(1); }
+  .reveal.in .stats-grid .stat-box,
+  .reveal.in .mini-stats-grid .mini-stat {
+    animation: statPop 0.5s cubic-bezier(.22,1,.36,1) forwards;
   }
-
-  .stats-grid .stat-box {
-    opacity: 0;
-    animation: statPop 0.35s cubic-bezier(.22,1,.36,1) forwards;
-  }
-  .stats-grid .stat-box:nth-child(1) { animation-delay: .3s; }
-  .stats-grid .stat-box:nth-child(2) { animation-delay: .35s; }
-  .mini-stats-grid .mini-stat {
-    opacity: 0;
-    animation: statPop 0.35s cubic-bezier(.22,1,.36,1) forwards;
-  }
-  .mini-stats-grid .mini-stat:nth-child(1) { animation-delay: .18s; }
-  .mini-stats-grid .mini-stat:nth-child(2) { animation-delay: .22s; }
+  .stats-grid .stat-box:nth-child(1) { animation-delay: .12s; }
+  .stats-grid .stat-box:nth-child(2) { animation-delay: .2s; }
+  .mini-stats-grid .mini-stat:nth-child(1) { animation-delay: .04s; }
+  .mini-stats-grid .mini-stat:nth-child(2) { animation-delay: .1s; }
   @keyframes statPop {
     from { opacity: 0; transform: translateY(20px) scale(0.916); }
     to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .reveal.in .late-item,
+  .reveal.in .empty-late {
+    animation: fadeInSlide 0.5s cubic-bezier(.16,1,.3,1) forwards;
+  }
+  .reveal.in table tbody tr {
+    animation: fadeInSlide 0.45s cubic-bezier(.16,1,.3,1) forwards;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -235,7 +244,7 @@
     border-radius: 12px; padding: 16px 22px; font-weight: 700; color: var(--danger-text); 
     border: 1px solid rgba(255, 255, 255, 0.3);
     box-shadow: 0 4px 16px rgba(198, 40, 40, 0.05), inset 0 1px 1px rgba(255,255,255,0.25);
-    animation: fadeInSlide 0.28s ease forwards;
+    animation-delay: var(--reveal-delay, 0s);
   }
   .late-item .tag { font-size: 12px; background: rgba(198, 40, 40, 0.14); color: var(--danger-text); padding: 4px 12px; border-radius: 20px; }
   .late-item .tag-group { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -475,6 +484,28 @@
     min-height: 44px;
   }
   .error-state .retry-btn:hover { opacity: 0.88; }
+
+  /* ===== Fallback للمتصفحات التي لا تدعم backdrop-filter =====
+     بعض المتصفحات القديمة (أو بعض إصدارات Firefox/متصفحات الأندرويد
+     المدمجة) لا تدعم backdrop-filter إطلاقاً. في هذه الحالة نرفع نسبة
+     عتامة الخلفية لتبقى القراءة واضحة ومريحة بدل الاعتماد على تأثير
+     الزجاج الضبابي غير المتاح. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-card,
+    .mini-stat,
+    .stat-box,
+    .search-input,
+    .table-container-mobile,
+    .error-state,
+    .admin-trigger,
+    .bank-card-trigger {
+      background: rgba(255, 255, 255, 0.9);
+    }
+    .late-item { background: rgba(198, 40, 40, 0.18); }
+    .empty-late { background: rgba(46, 125, 50, 0.18); }
+    .admin-overlay { background: rgba(11, 46, 35, 0.72); }
+    .bank-card-overlay { background: rgba(11, 46, 35, 0.75); }
+  }
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -796,7 +827,7 @@ function fmt(num) {
 }
 
 function memberRowHtml(m, idx, animated) {
-  const style = animated ? ` style="animation: fadeInSlide 0.22s ease ${idx * 0.02}s forwards;"` : '';
+  const style = animated ? ` style="animation-delay: ${idx * 0.02}s;"` : '';
   return `
     <tr${style}>
       <td class="name">${escapeHtml(m.name)}</td>
@@ -816,7 +847,7 @@ function renderApp(d) {
     .map(m => ({ name: m.name, words: m.englishName.toUpperCase().split(/\s+/).filter(Boolean) }));
 
   const lateListHtml = d.lateMembers.length === 0
-    ? '<div class="empty-late reveal">✓ جميع الأعضاء منتظمون في السداد لهذا الشهر.</div>'
+    ? '<div class="empty-late">✓ جميع الأعضاء منتظمون في السداد لهذا الشهر.</div>'
     : d.lateMembers.map((m, idx) => {
         const cycles = Number(m.cyclesLate || m.lateCycles || 0);
         const cyclesLabel = cycles === 1 ? 'دورة واحدة' : cycles === 2 ? 'دورتان' : `${cycles} دورات`;
@@ -827,7 +858,7 @@ function renderApp(d) {
   const rowsHtml = d.members.map((m, idx) => memberRowHtml(m, idx, true)).join('');
 
   const expensesRowsHtml = d.expensesList.map((e, idx) => `
-    <tr style="animation: fadeInSlide 0.22s ease ${idx * 0.03}s forwards;">
+    <tr style="animation-delay: ${idx * 0.03}s;">
       <td style="text-align: right; color: #4a5a6b;">${escapeHtml(e.date)}</td>
       <td style="text-align: right; font-weight:500; color: #2c3e50;">${escapeHtml(e.description)}</td>
       <td style="text-align: left; font-weight: 700; color: #c0392b;">${fmt(e.amount)} ﷼</td>
@@ -835,7 +866,7 @@ function renderApp(d) {
   `).join('');
 
   document.getElementById('appContainer').innerHTML = `
-    <div class="glass-card hero-card">
+    <div class="glass-card hero-card reveal">
       <div class="hero-box">
         <div class="label">الرصيد الحالي للصندوق</div>
         <div class="amount"><span class="count-num" data-count="${d.balance}">0</span><span>ريال</span></div>
@@ -1010,20 +1041,53 @@ function initAnimations() {
     requestAnimationFrame(tick);
   }
   
+  let countsStarted = false;
   function startCounts() {
+    if (countsStarted) return;
+    countsStarted = true;
     document.querySelectorAll('.count-num').forEach(el => animateCount(el));
   }
-  const heroCardEl = document.querySelector('.hero-card');
-  if (heroCardEl) {
-    heroCardEl.addEventListener('animationend', startCounts, { once: true });
-  } else {
-    setTimeout(startCounts, 300);
+
+  initScrollReveal(startCounts);
+
+  // شبكة أمان: تأكد أن الأرقام تبدأ عدّها حتى لو تعذّر رصد ظهور
+  // بطاقة الرصيد (مثلاً لو كانت خارج نطاق أول ملاحظة من IntersectionObserver).
+  setTimeout(startCounts, 1400);
+}
+
+/**
+ * نظام "Scroll Reveal" موحّد: يراقب كل عناصر .reveal عبر IntersectionObserver
+ * وعندما يدخل العنصر إطار الرؤية أثناء التمرير، تُضاف له كلاس "in" فتنزلق
+ * لأعلى وتظهر بسلاسة عبر CSS Transitions (بدون أي مكتبات خارجية ثقيلة).
+ * كل عنصر يُلاحَظ لمرة واحدة فقط (unobserve فور ظهوره) لأداء أخف على الجوال.
+ * @param {Function} [onHeroReveal] - يُستدعى بعد ظهور بطاقة الرصيد (hero-card) لبدء عدّ الأرقام.
+ */
+function initScrollReveal(onHeroReveal) {
+  const revealEls = document.querySelectorAll('.reveal');
+  if (!revealEls.length) return;
+
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // من دون IntersectionObserver أو مع تفضيل تقليل الحركة: أظهر كل شيء فوراً
+  // بلا انتظار تمرير، حتى تبقى الصفحة مقروءة بالكامل على أي متصفح.
+  if (reduceMotion || typeof IntersectionObserver !== 'function') {
+    revealEls.forEach(el => el.classList.add('in'));
+    if (typeof onHeroReveal === 'function') onHeroReveal();
+    return;
   }
 
-  const revealEls = document.querySelectorAll('.reveal');
   const io = new IntersectionObserver((entries) => {
-    entries.forEach(en => { if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); } });
-  }, {threshold:0.12});
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const el = entry.target;
+      el.classList.add('in');
+      io.unobserve(el);
+      if (el.classList.contains('hero-card') && typeof onHeroReveal === 'function') {
+        setTimeout(onHeroReveal, 420);
+      }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+
   revealEls.forEach(el => io.observe(el));
 }
 
