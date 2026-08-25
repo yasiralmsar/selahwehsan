@@ -202,7 +202,7 @@
     box-shadow: 0 4px 14px rgba(11, 46, 35, 0.08), inset 0 1px 1px rgba(255,255,255,0.5);
   }
   .mini-stat .mini-label { font-size: 12.5px; color: var(--text-muted); font-weight: 700; margin-bottom: 5px; }
-  .mini-stat .mini-value { font-size: 18.5px; font-weight: 800; }
+  .mini-stat .mini-value { font-size: 18.5px; font-weight: 800; white-space: nowrap; }
   .mini-stat.income { border-inline-start: 3px solid rgba(46, 125, 50, 0.5); }
   .mini-stat.income .mini-value { color: #1f6e3a; }
   .mini-stat.expense { border-inline-start: 3px solid rgba(198, 40, 40, 0.5); }
@@ -237,7 +237,7 @@
     border-radius: 12px; padding: 16px 22px; font-weight: 700; color: var(--danger-text); 
     border: 1px solid rgba(255, 255, 255, 0.3);
     box-shadow: 0 4px 16px rgba(198, 40, 40, 0.05), inset 0 1px 1px rgba(255,255,255,0.25);
-    animation: fadeInSlide 0.28s ease forwards;
+    animation: fadeInSlide 0.36s cubic-bezier(.22,1,.36,1) forwards;
   }
   .late-item .tag { font-size: 12px; background: rgba(198, 40, 40, 0.14); color: var(--danger-text); padding: 4px 12px; border-radius: 20px; }
   .late-item .tag-group { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -351,7 +351,7 @@
   .loading { text-align: center; padding: 70px; color: var(--primary); font-size: 20px; font-weight: bold; }
   
   @keyframes fadeInSlide {
-    from { opacity: 0; transform: translateY(21px) scale(0.958); }
+    from { opacity: 0; transform: translateY(26px) scale(0.96); }
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
 
@@ -408,9 +408,11 @@
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, #f8f6f1 0%, #eae7e2 100%);
-    border-bottom: 1px solid rgba(197, 160, 89, 0.3);
-    box-shadow: 0 4px 16px rgba(11, 46, 35, 0.08);
+    background: linear-gradient(135deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.03) 100%);
+    backdrop-filter: blur(32px) saturate(180%);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.35);
+    box-shadow: 0 4px 16px rgba(11, 46, 35, 0.08), inset 0 1px 1px rgba(255,255,255,0.5);
     z-index: -1;
   }
   .quick-nav-link {
@@ -804,13 +806,13 @@ function statusLabel(status) {
 }
 
 function memberRowHtml(m, idx, animated) {
-  const style = animated ? ` style="animation: fadeInSlide 0.22s ease ${idx * 0.02}s forwards;"` : '';
+  const style = animated ? ` style="animation: fadeInSlide 0.32s cubic-bezier(.22,1,.36,1) ${0.06 + idx * 0.045}s forwards; opacity: 0;"` : '';
   const statusClass = m.status === 'ok' ? 'ok' : (m.status === 'pending' ? 'pending' : 'late');
   return `
     <tr${style}>
       <td class="name">${escapeHtml(m.name)}</td>
       <td><span class="pill ${statusClass}">${statusLabel(m.status)}</span></td>
-      <td style="text-align: left; font-weight: 700; color: #8a6d2f; text-shadow: 0 1px 0 rgba(255,255,255,0.5);">${fmt(m.amount)} ﷼</td>
+      <td style="text-align: left; font-weight: 700; color: #8a6d2f; text-shadow: 0 1px 0 rgba(255,255,255,0.5); white-space: nowrap;">${fmt(m.amount)} ﷼</td>
     </tr>
   `;
 }
@@ -830,16 +832,16 @@ function renderApp(d) {
         const cycles = Number(m.cyclesLate || m.lateCycles || 0);
         const cyclesLabel = cycles === 1 ? 'دورة واحدة' : cycles === 2 ? 'دورتان' : `${cycles} دورات`;
         const cyclesTag = cycles > 0 ? `<span class="tag cycles">${cyclesLabel}</span>` : '';
-        return `<div class="late-item" style="animation-delay: ${idx * 0.08}s"><span>${escapeHtml(m.name)}</span> <span class="tag-group"><span class="tag">متأخر</span>${cyclesTag}</span></div>`;
+        return `<div class="late-item" style="animation-delay: ${0.08 + idx * 0.09}s"><span>${escapeHtml(m.name)}</span> <span class="tag-group"><span class="tag">متأخر</span>${cyclesTag}</span></div>`;
       }).join('');
 
   const rowsHtml = d.members.map((m, idx) => memberRowHtml(m, idx, true)).join('');
 
   const expensesRowsHtml = d.expensesList.map((e, idx) => `
-    <tr style="animation: fadeInSlide 0.22s ease ${idx * 0.03}s forwards;">
+    <tr style="animation: fadeInSlide 0.32s cubic-bezier(.22,1,.36,1) ${0.06 + idx * 0.045}s forwards; opacity: 0;">
       <td style="text-align: right; color: #4a5a6b;">${escapeHtml(e.date)}</td>
       <td style="text-align: right; font-weight:500; color: #2c3e50;">${escapeHtml(e.description)}</td>
-      <td style="text-align: left; font-weight: 700; color: #c0392b;">${fmt(e.amount)} ﷼</td>
+      <td style="text-align: left; font-weight: 700; color: #c0392b; white-space: nowrap;">${fmt(e.amount)} ﷼</td>
     </tr>
   `).join('');
 
