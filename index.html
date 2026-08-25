@@ -237,7 +237,6 @@
     border-radius: 12px; padding: 16px 22px; font-weight: 700; color: var(--danger-text); 
     border: 1px solid rgba(255, 255, 255, 0.3);
     box-shadow: 0 4px 16px rgba(198, 40, 40, 0.05), inset 0 1px 1px rgba(255,255,255,0.25);
-    animation: fadeInSlide 0.36s cubic-bezier(.22,1,.36,1) forwards;
   }
   .late-item .tag { font-size: 12px; background: rgba(198, 40, 40, 0.14); color: var(--danger-text); padding: 4px 12px; border-radius: 20px; }
   .late-item .tag-group { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -355,6 +354,17 @@
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
 
+  /* ===== ظهور متسلسل (سلسلة) عند دخول القسم للشاشة — يُفعَّل بجافاسكربت
+     لحظة ظهور القسم فعليًا، وليس لحظة تحميل الصفحة، حتى يظل الأثر
+     ملحوظًا للمستخدم مهما تأخر في التمرير لهذا القسم. */
+  .cascade-item {
+    opacity: 0;
+    transform: translateY(26px) scale(0.96);
+  }
+  .cascade-item.show {
+    animation: fadeInSlide 0.4s cubic-bezier(.22,1,.36,1) forwards;
+  }
+
   /* ===== أيقونة الشرح ===== */
   .info-trigger {
     display: inline-flex; align-items: center; justify-content: center;
@@ -387,9 +397,11 @@
 
   /* ===== قائمة تنقّل ثابتة ===== */
   /* بعد تجربة فعلية على آيفون: تأثير الزجاج الشفاف (backdrop-filter) مع
-     position: sticky غير موثوق على Safari. لضمان ثبات المظهر 100% على كل
-     الأجهزة، استُبدل بخلفية صلبة بتدرّج فاتح يحاكي شكل الزجاج بدون الاعتماد
-     على البلور الفعلي إطلاقًا. */
+     position: sticky غير موثوق على Safari — يظهر صلبًا/باهتًا فجأة عند
+     التمرير بدل الشفافية المتوقعة. لذلك اعتُمد شكل صلب 100% (بدون أي
+     backdrop-filter) لكن بنفس درجات اللون والّلمعة العلوية وقياسات الظل
+     المستخدمة في كرت الرصيد (.glass-card) حتى يبدوا متطابقين للعين رغم
+     اختلاف الآلية تقنيًا. */
   .quick-nav-sticky {
     display: none;
     position: sticky;
@@ -408,11 +420,18 @@
     content: '';
     position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.03) 100%);
-    backdrop-filter: blur(32px) saturate(180%);
-    -webkit-backdrop-filter: blur(32px) saturate(180%);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.35);
-    box-shadow: 0 4px 16px rgba(11, 46, 35, 0.08), inset 0 1px 1px rgba(255,255,255,0.5);
+    background: linear-gradient(135deg, #fbfaf6 0%, #ece7dc 100%);
+    border-bottom: 1px solid rgba(197, 160, 89, 0.28);
+    box-shadow: 0 4px 16px rgba(11, 46, 35, 0.08), inset 0 1px 1px rgba(255,255,255,0.7);
+    z-index: -2;
+  }
+  .quick-nav::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 55%;
+    background: linear-gradient(180deg, rgba(255,255,255,0.55) 0%, transparent 100%);
+    pointer-events: none;
     z-index: -1;
   }
   .quick-nav-link {
@@ -806,10 +825,10 @@ function statusLabel(status) {
 }
 
 function memberRowHtml(m, idx, animated) {
-  const style = animated ? ` style="animation: fadeInSlide 0.32s cubic-bezier(.22,1,.36,1) ${0.06 + idx * 0.045}s forwards; opacity: 0;"` : '';
+  const cascadeAttrs = animated ? ` class="cascade-item" data-cascade-idx="${idx}"` : '';
   const statusClass = m.status === 'ok' ? 'ok' : (m.status === 'pending' ? 'pending' : 'late');
   return `
-    <tr${style}>
+    <tr${cascadeAttrs}>
       <td class="name">${escapeHtml(m.name)}</td>
       <td><span class="pill ${statusClass}">${statusLabel(m.status)}</span></td>
       <td style="text-align: left; font-weight: 700; color: #8a6d2f; text-shadow: 0 1px 0 rgba(255,255,255,0.5); white-space: nowrap;">${fmt(m.amount)} ﷼</td>
@@ -832,13 +851,13 @@ function renderApp(d) {
         const cycles = Number(m.cyclesLate || m.lateCycles || 0);
         const cyclesLabel = cycles === 1 ? 'دورة واحدة' : cycles === 2 ? 'دورتان' : `${cycles} دورات`;
         const cyclesTag = cycles > 0 ? `<span class="tag cycles">${cyclesLabel}</span>` : '';
-        return `<div class="late-item" style="animation-delay: ${0.08 + idx * 0.09}s"><span>${escapeHtml(m.name)}</span> <span class="tag-group"><span class="tag">متأخر</span>${cyclesTag}</span></div>`;
+        return `<div class="late-item cascade-item" data-cascade-idx="${idx}"><span>${escapeHtml(m.name)}</span> <span class="tag-group"><span class="tag">متأخر</span>${cyclesTag}</span></div>`;
       }).join('');
 
   const rowsHtml = d.members.map((m, idx) => memberRowHtml(m, idx, true)).join('');
 
   const expensesRowsHtml = d.expensesList.map((e, idx) => `
-    <tr style="animation: fadeInSlide 0.32s cubic-bezier(.22,1,.36,1) ${0.06 + idx * 0.045}s forwards; opacity: 0;">
+    <tr class="cascade-item" data-cascade-idx="${idx}">
       <td style="text-align: right; color: #4a5a6b;">${escapeHtml(e.date)}</td>
       <td style="text-align: right; font-weight:500; color: #2c3e50;">${escapeHtml(e.description)}</td>
       <td style="text-align: left; font-weight: 700; color: #c0392b; white-space: nowrap;">${fmt(e.amount)} ﷼</td>
@@ -921,7 +940,7 @@ function renderApp(d) {
               <th style="text-align: left; width: 25%;">المبلغ</th>
             </tr>
           </thead>
-          <tbody>${expensesRowsHtml}</tbody>
+          <tbody id="expensesTableBody">${expensesRowsHtml}</tbody>
         </table>
       </div>
     </section>
@@ -1038,9 +1057,39 @@ function initAnimations() {
 
   const revealEls = document.querySelectorAll('.reveal');
   const io = new IntersectionObserver((entries) => {
-    entries.forEach(en => { if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target); } });
+    entries.forEach(en => {
+      if(en.isIntersecting){
+        en.target.classList.add('in');
+        cascadeRevealSection(en.target);
+        io.unobserve(en.target);
+      }
+    });
   }, {threshold:0.12});
   revealEls.forEach(el => io.observe(el));
+}
+
+/* تشغّل ظهور العناصر (أسماء الأعضاء/المتأخرين/المصروفات) واحدًا تلو الآخر
+   بشكل سلسلة ملحوظة، بالضبط لحظة دخول القسم للشاشة فعليًا — وليس لحظة
+   تحميل الصفحة، حتى يبقى الأثر واضحًا للمستخدم دائمًا مهما تأخر في
+   الوصول لهذا القسم أثناء التمرير. */
+function cascadeRevealSection(sectionEl) {
+  let items = [];
+  let step = 70;
+  if (sectionEl.id === 'lateSection') {
+    items = sectionEl.querySelectorAll('.cascade-item');
+    step = 110;
+  } else if (sectionEl.id === 'membersSection') {
+    items = sectionEl.querySelectorAll('#tableBody .cascade-item');
+    step = 70;
+  } else if (sectionEl.id === 'expensesSection') {
+    items = sectionEl.querySelectorAll('#expensesTableBody .cascade-item');
+    step = 70;
+  } else {
+    return;
+  }
+  items.forEach((el, idx) => {
+    setTimeout(() => { el.classList.add('show'); }, 90 + idx * step);
+  });
 }
 
 function initQuickNav() {
