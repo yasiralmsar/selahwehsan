@@ -166,11 +166,17 @@ body.section-expenses { background: var(--bg-expenses); }
 .hero-amount .unit { font-size: 20px; font-weight: 700; color: var(--gold); margin-inline-start: 8px; }
 
 .pulse-wrap { position: relative; margin-bottom: var(--sp-5); }
-.pulse-bars { display: flex; align-items: flex-end; gap: 5px; height: 46px; }
-.pulse-bar { flex: 1; border-radius: 4px 4px 0 0; background: var(--brand-dim); transition: height .8s var(--ease-spring); }
-.pulse-bar.active { background: linear-gradient(180deg, var(--brand), var(--gold)); }
+.pulse-bubbles { display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 2px; }
+.pulse-bubble-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
+.pulse-bubble { border-radius: 50%; transition: width .6s var(--ease-spring), height .6s var(--ease-spring), opacity .3s ease; }
+.pulse-bubble.positive { background: linear-gradient(135deg, var(--brand), var(--gold)); }
+.pulse-bubble.negative { background: var(--late); }
+.pulse-bubble.zero { background: var(--border-strong); }
+.pulse-bubble.muted { opacity: .5; }
+.pulse-bubble-label { font-size: 10.5px; font-weight: 700; color: var(--text-3); }
 .pulse-insight { margin-top: 10px; text-align: center; font-size: var(--fs-small); font-weight: 700; color: var(--text-2); }
 .pulse-insight strong { color: var(--brand); font-weight: 800; }
+.pulse-insight strong.negative-change { color: var(--late); }
 
 .mini-stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); position: relative; }
 .mini-stat { padding: var(--sp-4); border-radius: var(--r-md); background: var(--surface-2); border-inline-start: 3px solid var(--border-strong); }
@@ -613,23 +619,35 @@ function memberRowHtml(m, idx, animated) {
 function pulseChartHtml(trend) {
   if (!Array.isArray(trend) || trend.length < 2) return '';
   const values = trend.map(t => Number(t.net) || 0);
-  const max = Math.max(...values.map(v => Math.abs(v)), 1);
-  const bars = trend.map((t, i) => {
-    const h = Math.max(10, Math.round((Math.abs(values[i]) / max) * 100));
-    const active = i >= trend.length - 3 ? ' active' : '';
-    return `<div class="pulse-bar${active}" style="height:${h}%" title="${escapeHtml(t.label)}"></div>`;
+  const maxAbs = Math.max(...values.map(v => Math.abs(v)), 1);
+  const MIN_SIZE = 14, MAX_SIZE = 46;
+
+  const bubbles = trend.map((t, i) => {
+    const v = values[i];
+    const ratio = Math.abs(v) / maxAbs;
+    const size = Math.round(MIN_SIZE + ratio * (MAX_SIZE - MIN_SIZE));
+    const sign = v > 0 ? 'positive' : (v < 0 ? 'negative' : 'zero');
+    const muted = i < trend.length - 3 ? ' muted' : '';
+    const signPrefix = v > 0 ? '+' : '';
+    return `
+      <div class="pulse-bubble-col">
+        <div class="pulse-bubble ${sign}${muted}" style="width:${size}px;height:${size}px;" title="${escapeHtml(t.label)}: ${signPrefix}${fmt(v)} ﷼"></div>
+        <div class="pulse-bubble-label">${escapeHtml(t.label)}</div>
+      </div>`;
   }).join('');
+
   const last = values[values.length - 1];
   const prev = values[values.length - 2];
   let insight = 'مسار الصندوق مستقر هذا الشهر.';
   if (prev !== 0) {
     const change = Math.round(((last - prev) / Math.abs(prev)) * 100);
     if (change > 0) insight = `صافي التدفق ارتفع <strong>${change}%</strong> عن الشهر الماضي.`;
-    else if (change < 0) insight = `صافي التدفق انخفض <strong>${Math.abs(change)}%</strong> عن الشهر الماضي.`;
+    else if (change < 0) insight = `صافي التدفق انخفض <strong class="negative-change">${Math.abs(change)}%</strong> عن الشهر الماضي.`;
   }
+
   return `
     <div class="pulse-wrap">
-      <div class="pulse-bars">${bars}</div>
+      <div class="pulse-bubbles">${bubbles}</div>
       <div class="pulse-insight">${insight}</div>
     </div>
   `;
