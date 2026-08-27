@@ -173,7 +173,7 @@ body.section-expenses { background: var(--bg-expenses); }
 .pulse-bubble.negative { background: var(--late); }
 .pulse-bubble.zero { background: var(--border-strong); }
 .pulse-bubble.muted { opacity: .5; }
-.pulse-bubble-label { font-size: 10.5px; font-weight: 700; color: var(--text-3); }
+.pulse-bubble-label { font-size: 9.5px; font-weight: 700; color: var(--text-3); white-space: nowrap; }
 .pulse-insight { margin-top: 10px; text-align: center; font-size: var(--fs-small); font-weight: 700; color: var(--text-2); }
 .pulse-insight strong { color: var(--brand); font-weight: 800; }
 .pulse-insight strong.negative-change { color: var(--late); }
@@ -636,13 +636,20 @@ function pulseChartHtml(trend) {
       </div>`;
   }).join('');
 
-  const last = values[values.length - 1];
-  const prev = values[values.length - 2];
-  let insight = 'مسار الصندوق مستقر هذا الشهر.';
-  if (prev !== 0) {
-    const change = Math.round(((last - prev) / Math.abs(prev)) * 100);
-    if (change > 0) insight = `صافي التدفق ارتفع <strong>${change}%</strong> عن الشهر الماضي.`;
-    else if (change < 0) insight = `صافي التدفق انخفض <strong class="negative-change">${Math.abs(change)}%</strong> عن الشهر الماضي.`;
+  // نستثني الشهر الجاري (آخر عنصر بالمصفوفة) من حساب نسبة المقارنة، لأنه
+  // لسا بمنتصف الشهر ومقارنته بشهر مكتمل قبله تعطي نسبة غير عادلة ومضلِّلة —
+  // نقارن بدلاً من ذلك بين آخر شهرين مكتملين، مع إبقاء فقاعة الشهر الجاري
+  // ظاهرة بالرسم لأنها بيانات صحيحة، فقط لا تدخل في حساب النسبة.
+  let insight = 'مسار الصندوق مستقر مؤخرًا.';
+  if (values.length >= 3) {
+    const lastComplete = values[values.length - 2];
+    const prevComplete = values[values.length - 3];
+    if (prevComplete !== 0) {
+      const change = Math.round(((lastComplete - prevComplete) / Math.abs(prevComplete)) * 100);
+      const lastLabel = trend[trend.length - 2].label;
+      if (change > 0) insight = `صافي ${escapeHtml(lastLabel)} ارتفع <strong>${change}%</strong> عن الشهر الذي قبله.`;
+      else if (change < 0) insight = `صافي ${escapeHtml(lastLabel)} انخفض <strong class="negative-change">${Math.abs(change)}%</strong> عن الشهر الذي قبله.`;
+    }
   }
 
   return `
@@ -1022,8 +1029,15 @@ function openAdminPanel() {
         <div class="admin-field"><label>العضو</label><select id="statusMemberSelect"><option value="">— اختر عضوًا —</option>${MEMBERS.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')}</select></div>
         <div class="admin-field">
           <label>الحالة الجديدة</label>
-          <select id="statusValueSelect"><option value="معلق">معلق (تجميد الحالة يدويًا)</option><option value="">تلقائي (إلغاء التعليق والعودة للحساب العادي)</option></select>
-          <div class="admin-note">حالة "معلق" لا تُحتسب ضمن المتأخرين، وتبقى ثابتة حتى تُلغيها من هنا يدويًا.</div>
+          <select id="statusValueSelect">
+            <option value="معلق">معلق (تجميد التأخير مؤقتًا)</option>
+            <option value="">تلقائي (إلغاء التعليق — يستأنف من نفس نقطة التجميد)</option>
+            <option value="منتظم">منتظم (فرض يدوي استثنائي — يتجاوز الحساب كليًا)</option>
+          </select>
+          <div class="admin-note">
+            <strong>معلق</strong>: يوقف عدّاد التأخير مؤقتًا دون حذف أي تأخير سابق كان موجودًا قبل التعليق — عند إلغاء التعليق (تلقائي) يستأنف الحساب من نفس النقطة التي كان عليها العضو وقت التعليق، وكأن فترة التعليق لم تُحتسب.<br>
+            <strong>منتظم</strong>: تجاوز يدوي مستقل تمامًا يفرض ظهور "منتظم" دائمًا بصرف النظر عن الحساب الفعلي — يُستخدم فقط لحالات استثنائية بقرار إداري.
+          </div>
         </div>
         <div class="admin-actions"><button class="admin-btn" id="setStatusBtn">تحديث الحالة</button></div>
         <div id="setStatusMsg"></div>
@@ -1087,7 +1101,11 @@ async function handleSetMemberStatus() {
     const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await resp.json();
     if (result.success) {
-      msgEl.innerHTML = status === 'معلق' ? `<div class="admin-msg success">تم تعليق حالة "${escapeHtml(memberName)}" بنجاح.</div>` : `<div class="admin-msg success">تمت إعادة "${escapeHtml(memberName)}" للحساب التلقائي بنجاح.</div>`;
+      let successMsg;
+      if (status === 'معلق') successMsg = `تم تعليق حالة "${escapeHtml(memberName)}" بنجاح (يبدأ عدّاد التجميد الآن).`;
+      else if (status === 'منتظم') successMsg = `تم فرض حالة "منتظم" يدويًا لـ "${escapeHtml(memberName)}" بنجاح.`;
+      else successMsg = `تمت إعادة "${escapeHtml(memberName)}" للحساب التلقائي بنجاح (يستأنف من نقطة التجميد السابقة).`;
+      msgEl.innerHTML = `<div class="admin-msg success">${successMsg}</div>`;
       loadData();
     } else { msgEl.innerHTML = '<div class="admin-msg error">فشل التحديث: ' + escapeHtml(result.error || 'خطأ غير معروف') + '</div>'; }
   } catch (err) {
