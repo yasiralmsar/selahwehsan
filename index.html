@@ -660,9 +660,12 @@ function pulseChartHtml(trend) {
   `;
 }
 
+let lastLoadedData = null;
+
 function renderApp(d) {
   const isFirstRender = !window._appRenderedOnce;
   window._appRenderedOnce = true;
+  lastLoadedData = d;
   allMembersData = d.members;
   MEMBERS = d.members.map(m => m.name);
   MEMBER_ENGLISH = d.members.filter(m => m.englishName).map(m => ({ name: m.name, words: m.englishName.toUpperCase().split(/\s+/).filter(Boolean) }));
@@ -1041,6 +1044,15 @@ function openAdminPanel() {
         </div>
         <div class="admin-actions"><button class="admin-btn" id="setStatusBtn">تحديث الحالة</button></div>
         <div id="setStatusMsg"></div>
+        <hr class="admin-divider">
+        <h3>تحديث تاريخ آخر مراجعة</h3>
+        <div class="admin-field">
+          <label>التاريخ الجديد (يُستخدم لحساب حالة الجميع: منتظم/متأخر)</label>
+          <input type="date" id="reviewDateInput" value="${lastLoadedData && lastLoadedData.reviewDate ? lastLoadedData.reviewDate : ''}">
+          <div class="admin-note">حدّثه فور رفع كشف حساب جديد بدل فتح الشيت وتعديل الخلية يدويًا. تغييره يُعيد حساب حالة جميع الأعضاء فورًا.</div>
+        </div>
+        <div class="admin-actions"><button class="admin-btn" id="setReviewDateBtn">تحديث التاريخ</button></div>
+        <div id="reviewDateMsg"></div>
       </div>
     </div>
   `;
@@ -1049,6 +1061,7 @@ function openAdminPanel() {
   document.getElementById('parsePdfBtn').addEventListener('click', handleParsePdf);
   document.getElementById('addMemberBtn').addEventListener('click', handleAddMember);
   document.getElementById('setStatusBtn').addEventListener('click', handleSetMemberStatus);
+  document.getElementById('setReviewDateBtn').addEventListener('click', handleSetReviewDate);
 }
 
 function closeAdminPanel() { document.getElementById('adminMount').innerHTML = ''; reviewRows = []; }
@@ -1111,6 +1124,30 @@ async function handleSetMemberStatus() {
   } catch (err) {
     msgEl.innerHTML = '<div class="admin-msg error">تعذّر الاتصال بالسكربت: ' + escapeHtml(err.message) + '</div>';
   } finally { setBtn.disabled = false; }
+}
+
+async function handleSetReviewDate() {
+  const input = document.getElementById('reviewDateInput');
+  const msgEl = document.getElementById('reviewDateMsg');
+  if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً.</div>'; return; }
+  if (!input.value) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء اختيار التاريخ.</div>'; return; }
+  if (!confirm(`هل أنت متأكد من تحديث تاريخ المراجعة إلى ${input.value}؟ سيُعاد حساب حالة جميع الأعضاء بناءً عليه.`)) return;
+  const btn = document.getElementById('setReviewDateBtn');
+  btn.disabled = true;
+  msgEl.innerHTML = '<div class="admin-msg">جاري التحديث...</div>';
+  try {
+    const payload = { action: 'setReviewDate', adminKey: adminKeyValue, reviewDate: input.value };
+    const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+    const result = await resp.json();
+    if (result.success) {
+      msgEl.innerHTML = `<div class="admin-msg success">تم تحديث تاريخ المراجعة إلى ${escapeHtml(result.reviewDate)} بنجاح — سيُعاد حساب حالة كل الأعضاء تلقائيًا.</div>`;
+      loadData();
+    } else {
+      msgEl.innerHTML = '<div class="admin-msg error">فشل التحديث: ' + escapeHtml(result.error || 'خطأ غير معروف') + '</div>';
+    }
+  } catch (err) {
+    msgEl.innerHTML = '<div class="admin-msg error">تعذّر الاتصال بالسكربت: ' + escapeHtml(err.message) + '</div>';
+  } finally { btn.disabled = false; }
 }
 
 function showAdminMsg(text, type) { const el = document.getElementById('adminMsg'); if (el) el.innerHTML = `<div class="admin-msg ${type}">${text}</div>`; }
