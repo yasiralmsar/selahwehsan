@@ -166,17 +166,27 @@ body.section-expenses { background: var(--bg-expenses); }
 .hero-amount .unit { font-size: 20px; font-weight: 700; color: var(--gold); margin-inline-start: 8px; }
 
 .pulse-wrap { position: relative; margin-bottom: var(--sp-5); }
-.pulse-bubbles { display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 2px; }
+.pulse-bubbles { display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 2px; }
 .pulse-bubble-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
-.pulse-bubble { border-radius: 50%; transition: width .6s var(--ease-spring), height .6s var(--ease-spring), opacity .3s ease; }
-.pulse-bubble.positive { background: linear-gradient(135deg, var(--brand), var(--gold)); }
-.pulse-bubble.negative { background: var(--late); }
-.pulse-bubble.zero { background: var(--border-strong); }
-.pulse-bubble.muted { opacity: .5; }
 .pulse-bubble-label { font-size: 9.5px; font-weight: 700; color: var(--text-3); white-space: nowrap; }
-.pulse-insight { margin-top: 10px; text-align: center; font-size: var(--fs-small); font-weight: 700; color: var(--text-2); }
-.pulse-insight strong { color: var(--brand); font-weight: 800; }
-.pulse-insight strong.negative-change { color: var(--late); }
+
+/* دائرة اكتمال الشهر — كل الدوائر بحجم موحّد. الشهر المكتمل (100%) دائرة
+   خضراء ممتلئة بلا نص. الشهر الناقص حلقة تقدّم حمراء (conic-gradient)
+   بنسبة الاكتمال داخلها، والفتحة الوسطى بلون البطاقة (var(--surface))
+   لتبدو حلقة لا قطعة فطيرة. */
+.completion-ring {
+  width: 38px; height: 38px; border-radius: 50%; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .4s var(--ease-smooth);
+}
+.completion-ring.complete { background: var(--ok); }
+.completion-ring.incomplete {
+  background: conic-gradient(var(--late) calc(var(--pct) * 1%), var(--late-dim) 0);
+}
+.completion-ring.incomplete::after {
+  content: ''; position: absolute; inset: 5px; border-radius: 50%; background: var(--surface);
+}
+.completion-pct { position: relative; z-index: 1; font-size: 9.5px; font-weight: 800; color: var(--late); opacity: .72; }
 
 .mini-stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); position: relative; }
 .mini-stat { padding: var(--sp-4); border-radius: var(--r-md); background: var(--surface-2); border-inline-start: 3px solid var(--border-strong); }
@@ -616,51 +626,31 @@ function memberRowHtml(m, idx, animated) {
 }
 
 /* =========================================================================
-   PULSE CHART (العنصر المميّز) — شريط نبضات شهرية + جملة رؤى نصية.
-   يعتمد على d.monthlyTrend إن وُجدت من الـ API (مصفوفة {label, net}).
-   إن لم تكن متاحة بعد (يحتاج إضافة بسيطة على doGet في Code.gs)، يختفي
-   القسم كليًا بلا أي أثر بصري بدل عرضه فارغًا أو مكسورًا.
+   COMPLETION CHART (العنصر المميّز) — دائرة اكتمال لكل من آخر 6 أشهر.
+   يعتمد على d.monthlyCompletion من الـ API (مصفوفة {label, pct, complete}).
+   لا توجد أي جملة نصية أسفل الدوائر — كل دائرة تكتفي بنفسها: خضراء ممتلئة
+   = اكتمال 100%، حلقة حمراء بنسبة داخلها = اكتمال ناقص. إن لم تكن البيانات
+   متاحة، يختفي القسم كليًا بلا أي أثر بصري بدل عرضه فارغًا أو مكسورًا.
    ========================================================================= */
-function pulseChartHtml(trend) {
-  if (!Array.isArray(trend) || trend.length < 2) return '';
-  const values = trend.map(t => Number(t.net) || 0);
-  const maxAbs = Math.max(...values.map(v => Math.abs(v)), 1);
-  const MIN_SIZE = 14, MAX_SIZE = 46;
+function completionChartHtml(completion) {
+  if (!Array.isArray(completion) || completion.length < 2) return '';
 
-  const bubbles = trend.map((t, i) => {
-    const v = values[i];
-    const ratio = Math.abs(v) / maxAbs;
-    const size = Math.round(MIN_SIZE + ratio * (MAX_SIZE - MIN_SIZE));
-    const sign = v > 0 ? 'positive' : (v < 0 ? 'negative' : 'zero');
-    const muted = i < trend.length - 3 ? ' muted' : '';
-    const signPrefix = v > 0 ? '+' : '';
+  const bubbles = completion.map(m => {
+    const pct = Math.max(0, Math.min(100, Number(m.pct) || 0));
+    const isComplete = !!m.complete;
+    const title = `${escapeHtml(m.label)}: ${m.covered}/${m.required} أعضاء سدّدوا (${pct}%)`;
     return `
       <div class="pulse-bubble-col">
-        <div class="pulse-bubble ${sign}${muted}" style="width:${size}px;height:${size}px;" title="${escapeHtml(t.label)}: ${signPrefix}${fmt(v)} ﷼"></div>
-        <div class="pulse-bubble-label">${escapeHtml(t.label)}</div>
+        <div class="completion-ring ${isComplete ? 'complete' : 'incomplete'}" style="--pct:${pct};" title="${title}">
+          ${isComplete ? '' : `<span class="completion-pct">${pct}%</span>`}
+        </div>
+        <div class="pulse-bubble-label">${escapeHtml(m.label)}</div>
       </div>`;
   }).join('');
-
-  // نستثني الشهر الجاري (آخر عنصر بالمصفوفة) من حساب نسبة المقارنة، لأنه
-  // لسا بمنتصف الشهر ومقارنته بشهر مكتمل قبله تعطي نسبة غير عادلة ومضلِّلة —
-  // نقارن بدلاً من ذلك بين آخر شهرين مكتملين، مع إبقاء فقاعة الشهر الجاري
-  // ظاهرة بالرسم لأنها بيانات صحيحة، فقط لا تدخل في حساب النسبة.
-  let insight = 'مسار الصندوق مستقر مؤخرًا.';
-  if (values.length >= 3) {
-    const lastComplete = values[values.length - 2];
-    const prevComplete = values[values.length - 3];
-    if (prevComplete !== 0) {
-      const change = Math.round(((lastComplete - prevComplete) / Math.abs(prevComplete)) * 100);
-      const lastLabel = trend[trend.length - 2].label;
-      if (change > 0) insight = `صافي ${escapeHtml(lastLabel)} ارتفع <strong>${change}%</strong> عن الشهر الذي قبله.`;
-      else if (change < 0) insight = `صافي ${escapeHtml(lastLabel)} انخفض <strong class="negative-change">${Math.abs(change)}%</strong> عن الشهر الذي قبله.`;
-    }
-  }
 
   return `
     <div class="pulse-wrap">
       <div class="pulse-bubbles">${bubbles}</div>
-      <div class="pulse-insight">${insight}</div>
     </div>
   `;
 }
@@ -703,7 +693,7 @@ function renderApp(d) {
     <div class="card hero-card">
       <div class="hero-label">الرصيد الحالي للصندوق</div>
       <div class="hero-amount"><span class="count-num" data-count="${d.balance}">0</span><span class="unit">ريال</span></div>
-      ${pulseChartHtml(d.monthlyTrend)}
+      ${completionChartHtml(d.monthlyCompletion)}
       <div class="mini-stats-row">
         <div class="mini-stat income"><div class="mini-label">إجمالي المساهمات</div><div class="mini-value">${fmt(d.contributions)} ﷼</div></div>
         <div class="mini-stat expense"><div class="mini-label">إجمالي السحوبات</div><div class="mini-value">${fmt(d.expenses)} ﷼</div></div>
@@ -1088,10 +1078,12 @@ function openAdminPanel() {
 
         <div class="admin-section" data-section="deleteTransfer">
           <div class="admin-field"><label>العضو</label><select id="delTransferMemberSelect">${memberOptions}</select></div>
-          <div class="admin-field"><label>تاريخ الحوالة المراد حذفها</label><input type="date" id="delTransferDate"></div>
-          <div class="admin-field"><label>المبلغ (اختياري — لتحديد الحوالة بدقة إن وُجد أكثر من حوالة لنفس العضو بنفس التاريخ)</label><input type="number" step="0.01" id="delTransferAmount" placeholder="مثال: 100"></div>
+          <div class="admin-field">
+            <label>الحوالة المراد حذفها</label>
+            <select id="delTransferPicker" disabled><option value="">— اختر عضوًا أولاً —</option></select>
+          </div>
           <div class="admin-note danger-note">عملية لا رجعة فيها بسهولة. ستظهر نافذة تأكيد قبل التنفيذ.</div>
-          <div class="admin-actions"><button class="admin-btn danger" id="delTransferBtn">حذف الحوالة</button></div>
+          <div class="admin-actions"><button class="admin-btn danger" id="delTransferBtn" disabled>حذف الحوالة</button></div>
           <div id="delTransferMsg"></div>
         </div>
 
@@ -1115,6 +1107,7 @@ function openAdminPanel() {
   document.getElementById('editMemberBtn').addEventListener('click', handleEditMember);
   document.getElementById('setStatusBtn').addEventListener('click', handleSetMemberStatus);
   document.getElementById('delTransferBtn').addEventListener('click', handleDeleteTransfer);
+  document.getElementById('delTransferMemberSelect').addEventListener('change', handleDelTransferMemberChange);
   document.getElementById('setReviewDateBtn').addEventListener('click', handleSetReviewDate);
 
   const actionSelect = document.getElementById('adminActionSelect');
@@ -1187,22 +1180,76 @@ async function handleSetMemberStatus() {
   } finally { setBtn.disabled = false; }
 }
 
-async function handleDeleteTransfer() {
+/* عند اختيار العضو في نموذج "حذف حوالة": نجلب حوالاته فعليًا من الشيت
+   (lazy load — بس وقت الحاجة، مو مسبقًا لكل الأعضاء) ونعبّي بها القائمة
+   المنسدلة الثانية بدل ما يكتب المشرف التاريخ والمبلغ يدويًا. */
+async function handleDelTransferMemberChange() {
   const memberSelect = document.getElementById('delTransferMemberSelect');
-  const dateInput = document.getElementById('delTransferDate');
-  const amountInput = document.getElementById('delTransferAmount');
+  const picker = document.getElementById('delTransferPicker');
+  const delBtn = document.getElementById('delTransferBtn');
   const msgEl = document.getElementById('delTransferMsg');
   const memberName = memberSelect.value;
-  const dateVal = dateInput.value; // yyyy-mm-dd من input type=date
-  const amountVal = amountInput.value.trim();
+
+  delBtn.disabled = true;
+  msgEl.innerHTML = '';
+
+  if (!memberName) {
+    picker.innerHTML = '<option value="">— اختر عضوًا أولاً —</option>';
+    picker.disabled = true;
+    return;
+  }
+  if (!adminKeyValue) {
+    picker.innerHTML = '<option value="">— أدخل مفتاح المشرف أولاً —</option>';
+    picker.disabled = true;
+    msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً (أعلى النموذج).</div>';
+    return;
+  }
+
+  picker.disabled = true;
+  picker.innerHTML = '<option value="">جاري التحميل...</option>';
+  try {
+    const url = `${API_URL}?action=memberTransfers&memberName=${encodeURIComponent(memberName)}&adminKey=${encodeURIComponent(adminKeyValue)}`;
+    const resp = await fetch(url);
+    const result = await resp.json();
+    if (!result.success) {
+      picker.innerHTML = '<option value="">— تعذّر التحميل —</option>';
+      msgEl.innerHTML = '<div class="admin-msg error">' + escapeHtml(result.error || 'تعذّر جلب حوالات العضو') + '</div>';
+      return;
+    }
+    if (!result.transfers.length) {
+      picker.innerHTML = '<option value="">— لا توجد حوالات مسجَّلة لهذا العضو —</option>';
+      return;
+    }
+    picker.innerHTML = '<option value="">— اختر الحوالة —</option>' + result.transfers.map(t =>
+      `<option value="1" data-date="${escapeHtml(t.date)}" data-amount="${t.amount}">${escapeHtml(t.date)} — ${fmt(t.amount)} ﷼</option>`
+    ).join('');
+    picker.disabled = false;
+  } catch (err) {
+    picker.innerHTML = '<option value="">— تعذّر التحميل —</option>';
+    msgEl.innerHTML = '<div class="admin-msg error">تعذّر الاتصال بالسكربت: ' + escapeHtml(err.message) + '</div>';
+  }
+}
+
+document.addEventListener('change', (e) => {
+  if (e.target && e.target.id === 'delTransferPicker') {
+    document.getElementById('delTransferBtn').disabled = !e.target.value;
+  }
+});
+
+async function handleDeleteTransfer() {
+  const memberSelect = document.getElementById('delTransferMemberSelect');
+  const picker = document.getElementById('delTransferPicker');
+  const msgEl = document.getElementById('delTransferMsg');
+  const memberName = memberSelect.value;
+  const selectedOption = picker.options[picker.selectedIndex];
+  const dateForApi = selectedOption ? selectedOption.dataset.date : '';
+  const amountVal = selectedOption ? selectedOption.dataset.amount : '';
   if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً (أعلى النموذج).</div>'; return; }
   if (!memberName) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء اختيار عضو.</div>'; return; }
-  if (!dateVal) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء تحديد تاريخ الحوالة.</div>'; return; }
+  if (!dateForApi) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء اختيار الحوالة المراد حذفها.</div>'; return; }
 
-  const dateForApi = dateVal.replaceAll('-', '/'); // توحيد الصيغة مع باقي الملف (yyyy/mm/dd)
-  const confirmMsg = `هل أنت متأكد من حذف حوالة "${memberName}" بتاريخ ${dateForApi}` +
-    (amountVal ? ` بمبلغ ${amountVal} ريال` : '') +
-    `؟\n\nهذا الإجراء لا يمكن التراجع عنه من الموقع (على عكس الشيت الذي يحتفظ بسجل تعديلات).`;
+  const confirmMsg = `هل أنت متأكد من حذف حوالة "${memberName}" بتاريخ ${dateForApi} بمبلغ ${amountVal} ريال؟` +
+    `\n\nهذا الإجراء لا يمكن التراجع عنه من الموقع (على عكس الشيت الذي يحتفظ بسجل تعديلات).`;
   if (!confirm(confirmMsg)) return;
 
   const btn = document.getElementById('delTransferBtn');
@@ -1216,14 +1263,18 @@ async function handleDeleteTransfer() {
       let successMsg = `تم حذف الحوالة بنجاح.`;
       if (result.note) successMsg += ` <br><span style="color:var(--late);">${escapeHtml(result.note)}</span>`;
       msgEl.innerHTML = `<div class="admin-msg success">${successMsg}</div>`;
-      dateInput.value = ''; amountInput.value = '';
+      picker.innerHTML = '<option value="">— اختر عضوًا أولاً —</option>';
+      picker.disabled = true;
+      btn.disabled = true;
       loadData();
     } else {
       msgEl.innerHTML = '<div class="admin-msg error">فشل الحذف: ' + escapeHtml(result.error || 'خطأ غير معروف') + '</div>';
+      btn.disabled = false;
     }
   } catch (err) {
     msgEl.innerHTML = '<div class="admin-msg error">تعذّر الاتصال بالسكربت: ' + escapeHtml(err.message) + '</div>';
-  } finally { btn.disabled = false; }
+    btn.disabled = false;
+  }
 }
 
 async function handleEditMember() {
