@@ -170,23 +170,28 @@ body.section-expenses { background: var(--bg-expenses); }
 .pulse-bubble-col { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
 .pulse-bubble-label { font-size: 9.5px; font-weight: 700; color: var(--text-3); white-space: nowrap; }
 
-/* دائرة اكتمال الشهر — كل الدوائر بحجم موحّد. الشهر المكتمل (100%) دائرة
-   خضراء ممتلئة بلا نص. الشهر الناقص حلقة تقدّم حمراء (conic-gradient)
-   بنسبة الاكتمال داخلها، والفتحة الوسطى بلون البطاقة (var(--surface))
-   لتبدو حلقة لا قطعة فطيرة. */
+/* دائرة اكتمال الشهر — كل الدوائر بحجم موحّد ونفس تنسيق الحلقة (conic-gradient
+   بفتحة وسطى بلون البطاقة var(--surface)) سواء كانت مكتملة أو ناقصة؛ الفرق
+   فقط في اللون: حلقة خضراء ممتلئة (100%) للشهر المكتمل، وحلقة حمراء بنسبة
+   الاكتمال داخلها للشهر الناقص. */
 .completion-ring {
   width: 38px; height: 38px; border-radius: 50%; position: relative;
   display: flex; align-items: center; justify-content: center;
   transition: background .4s var(--ease-smooth);
 }
-.completion-ring.complete { background: var(--ok); }
+.completion-ring.complete {
+  background: conic-gradient(var(--ok) calc(var(--pct) * 1%), var(--ok-dim) 0);
+}
 .completion-ring.incomplete {
   background: conic-gradient(var(--late) calc(var(--pct) * 1%), var(--late-dim) 0);
 }
+.completion-ring.complete::after,
 .completion-ring.incomplete::after {
   content: ''; position: absolute; inset: 5px; border-radius: 50%; background: var(--surface);
 }
-.completion-pct { position: relative; z-index: 1; font-size: 9.5px; font-weight: 800; color: var(--late); opacity: .72; }
+.completion-pct { position: relative; z-index: 1; font-size: 9.5px; font-weight: 800; opacity: .72; }
+.completion-ring.complete .completion-pct { color: var(--ok); }
+.completion-ring.incomplete .completion-pct { color: var(--late); }
 
 .mini-stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); position: relative; }
 .mini-stat { padding: var(--sp-4); border-radius: var(--r-md); background: var(--surface-2); border-inline-start: 3px solid var(--border-strong); }
@@ -628,9 +633,10 @@ function memberRowHtml(m, idx, animated) {
 /* =========================================================================
    COMPLETION CHART (العنصر المميّز) — دائرة اكتمال لكل من آخر 6 أشهر.
    يعتمد على d.monthlyCompletion من الـ API (مصفوفة {label, pct, complete}).
-   لا توجد أي جملة نصية أسفل الدوائر — كل دائرة تكتفي بنفسها: خضراء ممتلئة
-   = اكتمال 100%، حلقة حمراء بنسبة داخلها = اكتمال ناقص. إن لم تكن البيانات
-   متاحة، يختفي القسم كليًا بلا أي أثر بصري بدل عرضه فارغًا أو مكسورًا.
+   كل الدوائر بنفس تنسيق الحلقة (conic-gradient بنسبة داخلها) — حلقة خضراء
+   ممتلئة (100%) للشهر المكتمل، وحلقة حمراء بنسبة الاكتمال داخلها للشهر
+   الناقص. إن لم تكن البيانات متاحة، يختفي القسم كليًا بلا أي أثر بصري بدل
+   عرضه فارغًا أو مكسورًا.
    ========================================================================= */
 function completionChartHtml(completion) {
   if (!Array.isArray(completion) || completion.length < 2) return '';
@@ -642,7 +648,7 @@ function completionChartHtml(completion) {
     return `
       <div class="pulse-bubble-col">
         <div class="completion-ring ${isComplete ? 'complete' : 'incomplete'}" style="--pct:${pct};" title="${title}">
-          ${isComplete ? '' : `<span class="completion-pct">${pct}%</span>`}
+          <span class="completion-pct">${pct}%</span>
         </div>
         <div class="pulse-bubble-label">${escapeHtml(m.label)}</div>
       </div>`;
