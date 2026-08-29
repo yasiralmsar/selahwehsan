@@ -403,6 +403,11 @@ section { margin-top: var(--sp-7); scroll-margin-top: var(--sp-5); }
 .admin-note { font-size: 12px; color: var(--text-3); margin-top: 6px; line-height: 1.6; }
 .admin-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
 .admin-divider { margin: 24px 0; border: none; border-top: 1px solid var(--border); }
+.admin-action-select { width: 100%; padding: 13px 14px; border-radius: 10px; border: 1px solid var(--border-strong);
+  font-family: inherit; font-size: 15.5px; font-weight: 700; background: var(--surface-2); color: var(--text-1); margin-bottom: 20px; }
+.admin-section { display: none; }
+.admin-section.active { display: block; }
+.admin-note.danger-note { color: var(--late); }
 
 .review-table-wrap { max-height: 320px; overflow-y: auto; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border); border-radius: 10px; margin: 14px 0; }
 .review-table { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 13px; }
@@ -1002,57 +1007,104 @@ let rowIdCounter = 0;
 
 document.getElementById('adminTriggerBtn').addEventListener('click', openAdminPanel);
 
+const ADMIN_ACTIONS = [
+  { value: 'upload',  label: 'رفع كشف حساب (PDF)' },
+  { value: 'addMember', label: 'إضافة عضو جديد' },
+  { value: 'editMember', label: 'تعديل بيانات عضو' },
+  { value: 'status', label: 'تغيير حالة السداد' },
+  { value: 'deleteTransfer', label: 'حذف حوالة' },
+  { value: 'reviewDate', label: 'تحديث تاريخ آخر مراجعة' }
+];
+
 function openAdminPanel() {
   const mount = document.getElementById('adminMount');
+  const memberOptions = `<option value="">— اختر عضوًا —</option>${MEMBERS.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')}`;
   mount.innerHTML = `
     <div class="admin-overlay" id="adminOverlay">
       <div class="admin-modal">
         <button class="admin-close" id="adminCloseBtn" aria-label="إغلاق">${ICONS.close}</button>
-        <h3>لوحة التحكم — رفع كشف حساب</h3>
+        <h3>لوحة التحكم</h3>
         <div class="admin-field"><label>مفتاح المشرف (Admin Key)</label><input type="password" id="adminKeyInput" placeholder="أدخل المفتاح السري" autocomplete="off"></div>
+
         <div class="admin-field">
-          <label>ملف كشف الحساب (PDF)</label>
-          <input type="file" id="pdfFileInput" accept="application/pdf">
-          <div class="admin-note">تتم قراءة الملف والتعرف على الحوالات داخل المتصفح فقط، ولا يُرفع ملف الـ PDF نفسه إلى أي خادم.</div>
-        </div>
-        <div class="admin-actions"><button class="admin-btn" id="parsePdfBtn">استخراج الحوالات من الملف</button></div>
-        <div id="adminMsg"></div>
-        <div id="reviewArea"></div>
-        <hr class="admin-divider">
-        <h3>إضافة عضو جديد</h3>
-        <div class="admin-field"><label>اسم العضو (الاسم الأول واسم الأب فقط)</label><input type="text" id="newMemberName" placeholder="مثال: خالد عبدالله" autocomplete="off"></div>
-        <div class="admin-field"><label>نوع العملية المتوقع (اختياري)</label><select id="newMemberOpType"><option value="">— غير محدد —</option><option value="تحويل">تحويل</option><option value="أمر مستديم">أمر مستديم</option></select></div>
-        <div class="admin-field"><label>البريد الإلكتروني (اختياري)</label><input type="email" id="newMemberEmail" placeholder="example@email.com" autocomplete="off"></div>
-        <div class="admin-field"><label>رقم الجوال (اختياري)</label><input type="tel" id="newMemberPhone" placeholder="05xxxxxxxx" autocomplete="off"></div>
-        <div class="admin-field"><label>الاسم بالإنجليزي كما يظهر في كشف الحساب (اختياري)</label><input type="text" id="newMemberEnglish" placeholder="KHALID ABDULLAH" autocomplete="off" style="direction:ltr; text-align:left;"><div class="admin-note">يُستخدم لمطابقة حوالات "أمر مستديم" تلقائيًا.</div></div>
-        <div class="admin-actions"><button class="admin-btn" id="addMemberBtn">إضافة العضو</button></div>
-        <div id="addMemberMsg"></div>
-        <hr class="admin-divider">
-        <h3>تغيير حالة السداد</h3>
-        <div class="admin-field"><label>العضو</label><select id="statusMemberSelect"><option value="">— اختر عضوًا —</option>${MEMBERS.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')}</select></div>
-        <div class="admin-field">
-          <label>الحالة الجديدة</label>
-          <select id="statusValueSelect">
-            <option value="معلق">معلق (تجميد التأخير مؤقتًا)</option>
-            <option value="">تلقائي (إلغاء التعليق — يستأنف من نفس نقطة التجميد)</option>
-            <option value="منتظم">منتظم (فرض يدوي استثنائي — يتجاوز الحساب كليًا)</option>
+          <label>الإجراء المطلوب</label>
+          <select class="admin-action-select" id="adminActionSelect">
+            ${ADMIN_ACTIONS.map(a => `<option value="${a.value}">${a.label}</option>`).join('')}
           </select>
-          <div class="admin-note">
-            <strong>معلق</strong>: يوقف عدّاد التأخير مؤقتًا دون حذف أي تأخير سابق كان موجودًا قبل التعليق — عند إلغاء التعليق (تلقائي) يستأنف الحساب من نفس النقطة التي كان عليها العضو وقت التعليق، وكأن فترة التعليق لم تُحتسب.<br>
-            <strong>منتظم</strong>: تجاوز يدوي مستقل تمامًا يفرض ظهور "منتظم" دائمًا بصرف النظر عن الحساب الفعلي — يُستخدم فقط لحالات استثنائية بقرار إداري.
+        </div>
+
+        <div class="admin-section" data-section="upload">
+          <div class="admin-field">
+            <label>ملف كشف الحساب (PDF)</label>
+            <input type="file" id="pdfFileInput" accept="application/pdf">
+            <div class="admin-note">تتم قراءة الملف والتعرف على الحوالات داخل المتصفح فقط، ولا يُرفع ملف الـ PDF نفسه إلى أي خادم.</div>
           </div>
+          <div class="admin-actions"><button class="admin-btn" id="parsePdfBtn">استخراج الحوالات من الملف</button></div>
+          <div id="adminMsg"></div>
+          <div id="reviewArea"></div>
         </div>
-        <div class="admin-actions"><button class="admin-btn" id="setStatusBtn">تحديث الحالة</button></div>
-        <div id="setStatusMsg"></div>
-        <hr class="admin-divider">
-        <h3>تحديث تاريخ آخر مراجعة</h3>
-        <div class="admin-field">
-          <label>التاريخ الجديد (يُستخدم لحساب حالة الجميع: منتظم/متأخر)</label>
-          <input type="date" id="reviewDateInput" value="${lastLoadedData && lastLoadedData.reviewDate ? lastLoadedData.reviewDate : ''}">
-          <div class="admin-note">حدّثه فور رفع كشف حساب جديد بدل فتح الشيت وتعديل الخلية يدويًا. تغييره يُعيد حساب حالة جميع الأعضاء فورًا.</div>
+
+        <div class="admin-section" data-section="addMember">
+          <div class="admin-field"><label>اسم العضو (الاسم الأول واسم الأب فقط)</label><input type="text" id="newMemberName" placeholder="مثال: خالد عبدالله" autocomplete="off"></div>
+          <div class="admin-field"><label>نوع العملية المتوقع (اختياري)</label><select id="newMemberOpType"><option value="">— غير محدد —</option><option value="تحويل">تحويل</option><option value="أمر مستديم">أمر مستديم</option></select></div>
+          <div class="admin-field"><label>البريد الإلكتروني (اختياري)</label><input type="email" id="newMemberEmail" placeholder="example@email.com" autocomplete="off"></div>
+          <div class="admin-field"><label>رقم الجوال (اختياري)</label><input type="tel" id="newMemberPhone" placeholder="05xxxxxxxx" autocomplete="off"></div>
+          <div class="admin-field"><label>الاسم بالإنجليزي كما يظهر في كشف الحساب (اختياري)</label><input type="text" id="newMemberEnglish" placeholder="KHALID ABDULLAH" autocomplete="off" style="direction:ltr; text-align:left;"><div class="admin-note">يُستخدم لمطابقة حوالات "أمر مستديم" تلقائيًا.</div></div>
+          <div class="admin-actions"><button class="admin-btn" id="addMemberBtn">إضافة العضو</button></div>
+          <div id="addMemberMsg"></div>
         </div>
-        <div class="admin-actions"><button class="admin-btn" id="setReviewDateBtn">تحديث التاريخ</button></div>
-        <div id="reviewDateMsg"></div>
+
+        <div class="admin-section" data-section="editMember">
+          <div class="admin-field"><label>العضو المراد تعديله</label><select id="editMemberSelect">${memberOptions}</select></div>
+          <div class="admin-field"><label>اسم جديد (اختياري)</label><input type="text" id="editMemberNewName" placeholder="اتركه فارغًا للإبقاء على الاسم الحالي" autocomplete="off">
+            <div class="admin-note danger-note">تعديل الاسم يُحدَّث تلقائيًا في "ملخص الأعضاء" و"ملخص للمشاركة" و"تفاصيل التحويلات" معًا — تأكد من كتابته بدقة.</div>
+          </div>
+          <div class="admin-field"><label>نوع العملية (اختياري)</label><select id="editMemberOpType"><option value="">— بلا تغيير —</option><option value="تحويل">تحويل</option><option value="أمر مستديم">أمر مستديم</option></select></div>
+          <div class="admin-field"><label>البريد الإلكتروني (اختياري)</label><input type="email" id="editMemberEmail" placeholder="اتركه فارغًا للإبقاء على القيمة الحالية" autocomplete="off"></div>
+          <div class="admin-field"><label>رقم الجوال (اختياري)</label><input type="tel" id="editMemberPhone" placeholder="اتركه فارغًا للإبقاء على القيمة الحالية" autocomplete="off"></div>
+          <div class="admin-field"><label>الاسم بالإنجليزي (اختياري)</label><input type="text" id="editMemberEnglish" placeholder="اتركه فارغًا للإبقاء على القيمة الحالية" autocomplete="off" style="direction:ltr; text-align:left;"></div>
+          <div class="admin-note">أي حقل تتركه فارغًا يبقى دون تغيير. الحقول المُعبَّأة فقط هي التي تُحدَّث.</div>
+          <div class="admin-actions"><button class="admin-btn" id="editMemberBtn">حفظ التعديلات</button></div>
+          <div id="editMemberMsg"></div>
+        </div>
+
+        <div class="admin-section" data-section="status">
+          <div class="admin-field"><label>العضو</label><select id="statusMemberSelect">${memberOptions}</select></div>
+          <div class="admin-field">
+            <label>الحالة الجديدة</label>
+            <select id="statusValueSelect">
+              <option value="معلق">معلق (تجميد التأخير مؤقتًا)</option>
+              <option value="">تلقائي (إلغاء التعليق — يستأنف من نفس نقطة التجميد)</option>
+              <option value="منتظم">منتظم (فرض يدوي استثنائي — يتجاوز الحساب كليًا)</option>
+            </select>
+            <div class="admin-note">
+              <strong>معلق</strong>: يوقف عدّاد التأخير مؤقتًا دون حذف أي تأخير سابق كان موجودًا قبل التعليق — عند إلغاء التعليق (تلقائي) يستأنف الحساب من نفس النقطة التي كان عليها العضو وقت التعليق، وكأن فترة التعليق لم تُحتسب.<br>
+              <strong>منتظم</strong>: تجاوز يدوي مستقل تمامًا يفرض ظهور "منتظم" دائمًا بصرف النظر عن الحساب الفعلي — يُستخدم فقط لحالات استثنائية بقرار إداري.
+            </div>
+          </div>
+          <div class="admin-actions"><button class="admin-btn" id="setStatusBtn">تحديث الحالة</button></div>
+          <div id="setStatusMsg"></div>
+        </div>
+
+        <div class="admin-section" data-section="deleteTransfer">
+          <div class="admin-field"><label>العضو</label><select id="delTransferMemberSelect">${memberOptions}</select></div>
+          <div class="admin-field"><label>تاريخ الحوالة المراد حذفها</label><input type="date" id="delTransferDate"></div>
+          <div class="admin-field"><label>المبلغ (اختياري — لتحديد الحوالة بدقة إن وُجد أكثر من حوالة لنفس العضو بنفس التاريخ)</label><input type="number" step="0.01" id="delTransferAmount" placeholder="مثال: 100"></div>
+          <div class="admin-note danger-note">عملية لا رجعة فيها بسهولة. ستظهر نافذة تأكيد قبل التنفيذ.</div>
+          <div class="admin-actions"><button class="admin-btn danger" id="delTransferBtn">حذف الحوالة</button></div>
+          <div id="delTransferMsg"></div>
+        </div>
+
+        <div class="admin-section" data-section="reviewDate">
+          <div class="admin-field">
+            <label>التاريخ الجديد (يُستخدم لحساب حالة الجميع: منتظم/متأخر)</label>
+            <input type="date" id="reviewDateInput" value="${lastLoadedData && lastLoadedData.reviewDate ? lastLoadedData.reviewDate : ''}">
+            <div class="admin-note">حدّثه فور رفع كشف حساب جديد بدل فتح الشيت وتعديل الخلية يدويًا. تغييره يُعيد حساب حالة جميع الأعضاء فورًا.</div>
+          </div>
+          <div class="admin-actions"><button class="admin-btn" id="setReviewDateBtn">تحديث التاريخ</button></div>
+          <div id="reviewDateMsg"></div>
+        </div>
+
       </div>
     </div>
   `;
@@ -1060,8 +1112,17 @@ function openAdminPanel() {
   document.getElementById('adminKeyInput').addEventListener('input', (e) => { adminKeyValue = e.target.value; });
   document.getElementById('parsePdfBtn').addEventListener('click', handleParsePdf);
   document.getElementById('addMemberBtn').addEventListener('click', handleAddMember);
+  document.getElementById('editMemberBtn').addEventListener('click', handleEditMember);
   document.getElementById('setStatusBtn').addEventListener('click', handleSetMemberStatus);
+  document.getElementById('delTransferBtn').addEventListener('click', handleDeleteTransfer);
   document.getElementById('setReviewDateBtn').addEventListener('click', handleSetReviewDate);
+
+  const actionSelect = document.getElementById('adminActionSelect');
+  const showSection = (val) => {
+    document.querySelectorAll('.admin-section').forEach(sec => sec.classList.toggle('active', sec.dataset.section === val));
+  };
+  actionSelect.addEventListener('change', (e) => showSection(e.target.value));
+  showSection(actionSelect.value);
 }
 
 function closeAdminPanel() { document.getElementById('adminMount').innerHTML = ''; reviewRows = []; }
@@ -1124,6 +1185,87 @@ async function handleSetMemberStatus() {
   } catch (err) {
     msgEl.innerHTML = '<div class="admin-msg error">تعذّر الاتصال بالسكربت: ' + escapeHtml(err.message) + '</div>';
   } finally { setBtn.disabled = false; }
+}
+
+async function handleDeleteTransfer() {
+  const memberSelect = document.getElementById('delTransferMemberSelect');
+  const dateInput = document.getElementById('delTransferDate');
+  const amountInput = document.getElementById('delTransferAmount');
+  const msgEl = document.getElementById('delTransferMsg');
+  const memberName = memberSelect.value;
+  const dateVal = dateInput.value; // yyyy-mm-dd من input type=date
+  const amountVal = amountInput.value.trim();
+  if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً (أعلى النموذج).</div>'; return; }
+  if (!memberName) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء اختيار عضو.</div>'; return; }
+  if (!dateVal) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء تحديد تاريخ الحوالة.</div>'; return; }
+
+  const dateForApi = dateVal.replaceAll('-', '/'); // توحيد الصيغة مع باقي الملف (yyyy/mm/dd)
+  const confirmMsg = `هل أنت متأكد من حذف حوالة "${memberName}" بتاريخ ${dateForApi}` +
+    (amountVal ? ` بمبلغ ${amountVal} ريال` : '') +
+    `؟\n\nهذا الإجراء لا يمكن التراجع عنه من الموقع (على عكس الشيت الذي يحتفظ بسجل تعديلات).`;
+  if (!confirm(confirmMsg)) return;
+
+  const btn = document.getElementById('delTransferBtn');
+  btn.disabled = true;
+  msgEl.innerHTML = '<div class="admin-msg">جاري الحذف...</div>';
+  try {
+    const payload = { action: 'deleteTransfer', adminKey: adminKeyValue, memberName, date: dateForApi, amount: amountVal || null };
+    const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+    const result = await resp.json();
+    if (result.success) {
+      let successMsg = `تم حذف الحوالة بنجاح.`;
+      if (result.note) successMsg += ` <br><span style="color:var(--late);">${escapeHtml(result.note)}</span>`;
+      msgEl.innerHTML = `<div class="admin-msg success">${successMsg}</div>`;
+      dateInput.value = ''; amountInput.value = '';
+      loadData();
+    } else {
+      msgEl.innerHTML = '<div class="admin-msg error">فشل الحذف: ' + escapeHtml(result.error || 'خطأ غير معروف') + '</div>';
+    }
+  } catch (err) {
+    msgEl.innerHTML = '<div class="admin-msg error">تعذّر الاتصال بالسكربت: ' + escapeHtml(err.message) + '</div>';
+  } finally { btn.disabled = false; }
+}
+
+async function handleEditMember() {
+  const memberSelect = document.getElementById('editMemberSelect');
+  const newNameInput = document.getElementById('editMemberNewName');
+  const opTypeInput = document.getElementById('editMemberOpType');
+  const emailInput = document.getElementById('editMemberEmail');
+  const phoneInput = document.getElementById('editMemberPhone');
+  const englishInput = document.getElementById('editMemberEnglish');
+  const msgEl = document.getElementById('editMemberMsg');
+  const memberName = memberSelect.value;
+  const newName = newNameInput.value.trim();
+  if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً (أعلى النموذج).</div>'; return; }
+  if (!memberName) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء اختيار العضو المراد تعديله.</div>'; return; }
+  if (!newName && !opTypeInput.value && !emailInput.value.trim() && !phoneInput.value.trim() && !englishInput.value.trim()) {
+    msgEl.innerHTML = '<div class="admin-msg error">الرجاء تعبئة حقل واحد على الأقل للتعديل.</div>';
+    return;
+  }
+  if (newName && !confirm(`هل أنت متأكد من تغيير اسم "${memberName}" إلى "${newName}"؟ سيُحدَّث الاسم في كل التبويبات المرتبطة به.`)) return;
+
+  const btn = document.getElementById('editMemberBtn');
+  btn.disabled = true;
+  msgEl.innerHTML = '<div class="admin-msg">جاري الحفظ...</div>';
+  try {
+    const payload = {
+      action: 'updateMember', adminKey: adminKeyValue, memberName,
+      newName, opType: opTypeInput.value || '', email: emailInput.value.trim(),
+      phone: phoneInput.value.trim(), englishName: englishInput.value.trim().toUpperCase()
+    };
+    const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+    const result = await resp.json();
+    if (result.success) {
+      const fieldsText = result.updatedFields && result.updatedFields.length ? result.updatedFields.join('، ') : 'لا شيء';
+      msgEl.innerHTML = `<div class="admin-msg success">تم التحديث بنجاح (${escapeHtml(fieldsText)}).</div>`;
+      newNameInput.value = ''; opTypeInput.value = ''; emailInput.value = ''; phoneInput.value = ''; englishInput.value = '';
+      loadData();
+    } else {
+      msgEl.innerHTML = '<div class="admin-msg error">فشل التحديث: ' + escapeHtml(result.error || 'خطأ غير معروف') + '</div>';
+    }
+  } catch (err) {
+    msgEl.innerHTML = '<div class="admin-msg error">تعذّر الاتصال بالسكربت: ' + escapeHtml(err.message) + '</div>';
+  } finally { btn.disabled = false; }
 }
 
 async function handleSetReviewDate() {
