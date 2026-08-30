@@ -1001,6 +1001,56 @@ let adminKeyValue = "";
 let reviewRows = [];
 let rowIdCounter = 0;
 
+/* =========================================================================
+   ADMIN KEY VERIFICATION CACHE (جانب الواجهة فقط) — يمنع تكرار إرسال نفس
+   المفتاح الخاطئ للخادم في كل استدعاء إداري متتالٍ (مثل تصفح عدة أعضاء في
+   قائمة "حذف حوالة" المنسدلة)، والتي كانت تُحتسب كل واحدة منها كمحاولة
+   فاشلة منفصلة في نظام القفل بالخادم (checkAdminKey_ — حد 15 محاولة).
+
+   لا يُستبدل التحقق الخادمي بهذا التخزين إطلاقًا — هو فقط ذاكرة قصيرة
+   الأمد لنتيجة *آخر* تحقق فعلي ناجح من الخادم، صالحة لمدة 15 دقيقة فقط
+   (ADMIN_KEY_CACHE_TTL_MS) كحد أقصى، تحسّبًا لترك الصفحة مفتوحة فترة طويلة
+   دون استخدام. تُمسَح فورًا عند أي تغيير في حقل المفتاح (لأن نتيجة تحقق
+   سابقة لمفتاح مختلف لا معنى لها للمفتاح الجديد)، وهي في الذاكرة فقط
+   (متغيّر JS عادي بنفس نطاق adminKeyValue) — لا localStorage ولا
+   sessionStorage، فتختفي تلقائيًا بإغلاق التبويب أو تحديث الصفحة تمامًا
+   كما يختفي المفتاح نفسه حاليًا.
+   ========================================================================= */
+const ADMIN_KEY_CACHE_TTL_MS = 15 * 60 * 1000; // 15 دقيقة
+let adminKeyCache = { key: null, valid: null, checkedAt: 0 };
+
+function isAdminKeyCachedInvalid_() {
+  if (!adminKeyValue) return false;
+  const fresh = (Date.now() - adminKeyCache.checkedAt) < ADMIN_KEY_CACHE_TTL_MS;
+  return fresh && adminKeyCache.key === adminKeyValue && adminKeyCache.valid === false;
+}
+// أي فشل تُعيده checkAdminKey_ بالخادم (مفتاح خاطئ / مفتاح غير مضبوط /
+// قفل مؤقت) يحتوي دائمًا على "مفتاح المشرف" أو "الوصول الإداري" ضمن نص
+// الخطأ — بخلاف أخطاء أخرى غير متعلقة بالمفتاح إطلاقًا (مثل "الرجاء تحديد
+// اسم العضو" أو "تعذّر إيجاد صف الإجمالي"), والتي يجب ألا تُخزَّن كفشل
+// للمفتاح لأن المفتاح قد يكون صحيحًا تمامًا في تلك الحالات.
+function isAdminKeyRelatedError_(errorText) {
+  const t = String(errorText || '');
+  return t.indexOf('مفتاح المشرف') !== -1 || t.indexOf('الوصول الإداري') !== -1;
+}
+function rememberAdminKeyResult_(keyTried, wasValid) {
+  adminKeyCache = { key: keyTried, valid: wasValid, checkedAt: Date.now() };
+}
+// يُستدعى بعد كل استجابة من إجراء إداري (POST أو GET) لتحديث الذاكرة
+// المؤقتة بناءً على النتيجة، دون التأثير على استدعاءات لا علاقة لفشلها
+// بالمفتاح نفسه.
+function recordAdminKeyOutcome_(result) {
+  if (result && result.success) {
+    rememberAdminKeyResult_(adminKeyValue, true);
+  } else if (result && isAdminKeyRelatedError_(result.error)) {
+    rememberAdminKeyResult_(adminKeyValue, false);
+  }
+}
+const ADMIN_KEY_CACHED_INVALID_MSG =
+  '<div class="admin-msg error">مفتاح المشرف غير صحيح (نتيجة محفوظة من محاولة سابقة خلال آخر 15 دقيقة، لتفادي إرسال محاولات إضافية للخادم). عدّل المفتاح أعلاه ثم حاول مجددًا.</div>';
+const ADMIN_KEY_CACHED_INVALID_TEXT =
+  'مفتاح المشرف غير صحيح (نتيجة محفوظة من محاولة سابقة خلال آخر 15 دقيقة، لتفادي إرسال محاولات إضافية للخادم). عدّل المفتاح أعلاه ثم حاول مجددًا.';
+
 document.getElementById('adminTriggerBtn').addEventListener('click', openAdminPanel);
 
 const ADMIN_ACTIONS = [
@@ -1107,7 +1157,12 @@ function openAdminPanel() {
     </div>
   `;
   bindOverlayClose('adminOverlay', 'adminCloseBtn', closeAdminPanel);
-  document.getElementById('adminKeyInput').addEventListener('input', (e) => { adminKeyValue = e.target.value; });
+  document.getElementById('adminKeyInput').addEventListener('input', (e) => {
+    adminKeyValue = e.target.value;
+    // أي تغيير في المفتاح المكتوب يُلغي التخزين المؤقت فورًا — نتيجة تحقق
+    // سابقة لمفتاح مختلف لا معنى لها إطلاقًا للمفتاح الجديد.
+    adminKeyCache = { key: null, valid: null, checkedAt: 0 };
+  });
   document.getElementById('parsePdfBtn').addEventListener('click', handleParsePdf);
   document.getElementById('addMemberBtn').addEventListener('click', handleAddMember);
   document.getElementById('editMemberBtn').addEventListener('click', handleEditMember);
@@ -1135,6 +1190,7 @@ async function handleAddMember() {
   const msgEl = document.getElementById('addMemberMsg');
   const name = nameInput.value.trim();
   if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً (أعلى النموذج).</div>'; return; }
+  if (isAdminKeyCachedInvalid_()) { msgEl.innerHTML = ADMIN_KEY_CACHED_INVALID_MSG; return; }
   if (!name) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال اسم العضو.</div>'; return; }
   if (MEMBERS.indexOf(name) !== -1) { msgEl.innerHTML = '<div class="admin-msg error">هذا الاسم موجود مسبقًا ضمن أعضاء الصندوق.</div>'; return; }
   const addBtn = document.getElementById('addMemberBtn');
@@ -1144,6 +1200,7 @@ async function handleAddMember() {
     const payload = { action: 'addTransfers', adminKey: adminKeyValue, newMembers: [{ name, opType: opTypeInput.value || '', email: emailInput.value.trim(), phone: phoneInput.value.trim(), englishName: englishInput.value.trim().toUpperCase() }] };
     const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await resp.json();
+    recordAdminKeyOutcome_(result);
     if (result.success && result.addedMembers > 0) {
       msgEl.innerHTML = '<div class="admin-msg success">تمت إضافة العضو بنجاح، وأصبح متاحًا في قائمة رفع الكشوفات.</div>';
       nameInput.value = ''; opTypeInput.value = ''; emailInput.value = ''; phoneInput.value = ''; englishInput.value = '';
@@ -1165,6 +1222,7 @@ async function handleSetMemberStatus() {
   const memberName = memberSelect.value;
   const status = statusSelect.value;
   if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً (أعلى النموذج).</div>'; return; }
+  if (isAdminKeyCachedInvalid_()) { msgEl.innerHTML = ADMIN_KEY_CACHED_INVALID_MSG; return; }
   if (!memberName) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء اختيار عضو.</div>'; return; }
   const setBtn = document.getElementById('setStatusBtn');
   setBtn.disabled = true;
@@ -1173,6 +1231,7 @@ async function handleSetMemberStatus() {
     const payload = { action: 'setMemberStatus', adminKey: adminKeyValue, memberName, status };
     const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await resp.json();
+    recordAdminKeyOutcome_(result);
     if (result.success) {
       let successMsg;
       if (status === 'معلق') successMsg = `تم تعليق حالة "${escapeHtml(memberName)}" بنجاح (يبدأ عدّاد التجميد الآن).`;
@@ -1210,6 +1269,15 @@ async function handleDelTransferMemberChange() {
     msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً (أعلى النموذج).</div>';
     return;
   }
+  // هذا الفحص هو الحماية الأهم من استنزاف حد محاولات المفتاح بالخادم:
+  // بدونه، كل تنقّل بين أعضاء القائمة المنسدلة بمفتاح خاطئ يُرسل طلب GET
+  // جديد يُحتسب كمحاولة فاشلة منفصلة، رغم أنه نفس المفتاح الخاطئ بالضبط.
+  if (isAdminKeyCachedInvalid_()) {
+    picker.innerHTML = '<option value="">— مفتاح المشرف غير صحيح —</option>';
+    picker.disabled = true;
+    msgEl.innerHTML = ADMIN_KEY_CACHED_INVALID_MSG;
+    return;
+  }
 
   picker.disabled = true;
   picker.innerHTML = '<option value="">جاري التحميل...</option>';
@@ -1217,6 +1285,7 @@ async function handleDelTransferMemberChange() {
     const url = `${API_URL}?action=memberTransfers&memberName=${encodeURIComponent(memberName)}&adminKey=${encodeURIComponent(adminKeyValue)}`;
     const resp = await fetch(url);
     const result = await resp.json();
+    recordAdminKeyOutcome_(result);
     if (!result.success) {
       picker.innerHTML = '<option value="">— تعذّر التحميل —</option>';
       msgEl.innerHTML = '<div class="admin-msg error">' + escapeHtml(result.error || 'تعذّر جلب حوالات العضو') + '</div>';
@@ -1251,6 +1320,7 @@ async function handleDeleteTransfer() {
   const dateForApi = selectedOption ? selectedOption.dataset.date : '';
   const amountVal = selectedOption ? selectedOption.dataset.amount : '';
   if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً (أعلى النموذج).</div>'; return; }
+  if (isAdminKeyCachedInvalid_()) { msgEl.innerHTML = ADMIN_KEY_CACHED_INVALID_MSG; return; }
   if (!memberName) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء اختيار عضو.</div>'; return; }
   if (!dateForApi) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء اختيار الحوالة المراد حذفها.</div>'; return; }
 
@@ -1265,6 +1335,7 @@ async function handleDeleteTransfer() {
     const payload = { action: 'deleteTransfer', adminKey: adminKeyValue, memberName, date: dateForApi, amount: amountVal || null };
     const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await resp.json();
+    recordAdminKeyOutcome_(result);
     if (result.success) {
       let successMsg = `تم حذف الحوالة بنجاح.`;
       if (result.note) successMsg += ` <br><span style="color:var(--late);">${escapeHtml(result.note)}</span>`;
@@ -1294,6 +1365,7 @@ async function handleEditMember() {
   const memberName = memberSelect.value;
   const newName = newNameInput.value.trim();
   if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً (أعلى النموذج).</div>'; return; }
+  if (isAdminKeyCachedInvalid_()) { msgEl.innerHTML = ADMIN_KEY_CACHED_INVALID_MSG; return; }
   if (!memberName) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء اختيار العضو المراد تعديله.</div>'; return; }
   if (!newName && !opTypeInput.value && !emailInput.value.trim() && !phoneInput.value.trim() && !englishInput.value.trim()) {
     msgEl.innerHTML = '<div class="admin-msg error">الرجاء تعبئة حقل واحد على الأقل للتعديل.</div>';
@@ -1312,6 +1384,7 @@ async function handleEditMember() {
     };
     const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await resp.json();
+    recordAdminKeyOutcome_(result);
     if (result.success) {
       const fieldsText = result.updatedFields && result.updatedFields.length ? result.updatedFields.join('، ') : 'لا شيء';
       msgEl.innerHTML = `<div class="admin-msg success">تم التحديث بنجاح (${escapeHtml(fieldsText)}).</div>`;
@@ -1329,6 +1402,7 @@ async function handleSetReviewDate() {
   const input = document.getElementById('reviewDateInput');
   const msgEl = document.getElementById('reviewDateMsg');
   if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً.</div>'; return; }
+  if (isAdminKeyCachedInvalid_()) { msgEl.innerHTML = ADMIN_KEY_CACHED_INVALID_MSG; return; }
   if (!input.value) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء اختيار التاريخ.</div>'; return; }
   if (!confirm(`هل أنت متأكد من تحديث تاريخ المراجعة إلى ${input.value}؟ سيُعاد حساب حالة جميع الأعضاء بناءً عليه.`)) return;
   const btn = document.getElementById('setReviewDateBtn');
@@ -1338,6 +1412,7 @@ async function handleSetReviewDate() {
     const payload = { action: 'setReviewDate', adminKey: adminKeyValue, reviewDate: input.value };
     const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await resp.json();
+    recordAdminKeyOutcome_(result);
     if (result.success) {
       msgEl.innerHTML = `<div class="admin-msg success">تم تحديث تاريخ المراجعة إلى ${escapeHtml(result.reviewDate)} بنجاح — سيُعاد حساب حالة كل الأعضاء تلقائيًا.</div>`;
       loadData();
@@ -1486,6 +1561,7 @@ let withdrawalRows = [];
 async function handleParsePdf() {
   const fileInput = document.getElementById('pdfFileInput');
   if (!adminKeyValue) { showAdminMsgPlain('الرجاء إدخال مفتاح المشرف أولاً.', 'error'); return; }
+  if (isAdminKeyCachedInvalid_()) { showAdminMsgPlain(ADMIN_KEY_CACHED_INVALID_TEXT, 'error'); return; }
   if (!fileInput.files.length) { showAdminMsgPlain('الرجاء اختيار ملف PDF.', 'error'); return; }
   showAdminMsgPlain('جاري قراءة الملف...', '');
   try {
@@ -1585,6 +1661,7 @@ function updateWithdrawalRow(id, field, value) { const row = withdrawalRows.find
 
 async function handleSubmitRows() {
   if (!reviewRows.length && !withdrawalRows.length) return;
+  if (isAdminKeyCachedInvalid_()) { showAdminMsgPlain(ADMIN_KEY_CACHED_INVALID_TEXT, 'error'); return; }
   const invalidTransfers = reviewRows.some(r => !r.date || !r.name || !r.amount);
   const invalidWithdrawals = withdrawalRows.some(r => !r.date || !r.amount);
   if (invalidTransfers) { showAdminMsgPlain('تأكد من اختيار العضو وتعبئة التاريخ والمبلغ لكل صف حوالة قبل الإرسال.', 'error'); return; }
@@ -1600,6 +1677,7 @@ async function handleSubmitRows() {
     };
     const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await resp.json();
+    recordAdminKeyOutcome_(result);
     if (result.success) {
       let msg = `تم إضافة ${result.added} حوالة عضو`;
       if (result.addedExpenses) msg += ` و${result.addedExpenses} عملية سحب`;
