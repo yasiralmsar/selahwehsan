@@ -387,6 +387,7 @@ section { margin-top: var(--sp-7); scroll-margin-top: var(--sp-5); }
   flex-shrink: 0; background: var(--gold-dim); border: 1px solid rgba(221,183,114,.5); color: var(--gold);
   font-family: inherit; font-weight: 700; font-size: 12px; padding: 9px 13px; border-radius: 8px; cursor: pointer;
 }
+.bank-card-copy svg { width: 15px; height: 15px; display: block; }
 .bank-card-copy.copied { background: var(--ok-dim); border-color: rgba(62,207,125,.5); color: var(--ok); }
 .bank-card-footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 20px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.1); position: relative; }
 .bank-card-accountno { font-size: 12px; color: rgba(244,242,234,0.6); }
@@ -670,8 +671,6 @@ function renderApp(d) {
   allMembersData = d.members;
   MEMBERS = d.members.map(m => m.name);
   MEMBER_ENGLISH = d.members.filter(m => m.englishName).map(m => ({ name: m.name, words: m.englishName.toUpperCase().split(/\s+/).filter(Boolean) }));
-  MEMBER_LAST4 = {};
-  d.members.forEach(m => { if (m.accountLast4) MEMBER_LAST4[m.name] = m.accountLast4; });
 
   const lateListHtml = d.lateMembers.length === 0
     ? `<div class="empty-late reveal">${ICONS.checkCircle}<span>جميع الأعضاء منتظمون في السداد لهذا الشهر.</span></div>`
@@ -951,10 +950,6 @@ const DEFAULT_COLS = getActiveBankProfile().defaultCols;
 
 let MEMBERS = [];
 let MEMBER_ENGLISH = [];
-// خريطة (اسم العضو → آخر 4 أرقام من حسابه) — مرجع بصري فقط لمساعدة الأدمن
-// يدويًا عند تشابه الأسماء في قوائم الاختيار (لا علاقة لها بأي مطابقة تلقائية).
-let MEMBER_LAST4 = {};
-function memberLabelWithLast4_(name) { return MEMBER_LAST4[name] ? `${name} (…${MEMBER_LAST4[name]})` : name; }
 
 const TRANSLIT = {
   "عبدالله": ["ABDULLAH","ABDALLAH","ABDULLA"], "مطير": ["MUTAIR","MOTEER","MTEER","MUTEER","MOTAIR","MOTHIR"],
@@ -972,25 +967,16 @@ const TRANSLIT = {
 function normArabic(s) { return String(s).replace(/\s+/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه'); }
 
 function matchMemberArabic(arabicWords) {
-  return matchMemberArabicWithCandidates(arabicWords).name;
-}
-
-// نفس منطق matchMemberArabic الأصلي بالضبط، لكن يُرجع أيضًا قائمة المرشحين
-// المتعارضين (لو فيه أكتر من عضو محتمل) بدل ما يكتفي بإرجاع null بصمت —
-// عشان نقدر نحاول نحل التعارض عبر آخر 4 أرقام الحساب (matchMemberWithLast4).
-function matchMemberArabicWithCandidates(arabicWords) {
-  if (!arabicWords || !arabicWords.length) return { name: null, candidates: [] };
+  if (!arabicWords || !arabicWords.length) return null;
   const joined = normArabic(arabicWords.join(''));
   let candidates = MEMBERS.filter(m => joined.indexOf(normArabic(m)) === 0);
-  if (candidates.length === 1) return { name: candidates[0], candidates: [] };
-  let ambiguous = candidates.length > 1 ? candidates : [];
+  if (candidates.length === 1) return candidates[0];
   if (arabicWords.length === 1) {
     const w = normArabic(arabicWords[0]);
-    const wordCandidates = MEMBERS.filter(m => normArabic(m.split(' ')[0]) === w);
-    if (wordCandidates.length === 1) return { name: wordCandidates[0], candidates: [] };
-    if (wordCandidates.length > 1) ambiguous = wordCandidates;
+    candidates = MEMBERS.filter(m => normArabic(m.split(' ')[0]) === w);
+    if (candidates.length === 1) return candidates[0];
   }
-  return { name: null, candidates: ambiguous };
+  return null;
 }
 
 function matchMemberLatin(latinWords) {
@@ -1011,37 +997,6 @@ function matchMemberLatin(latinWords) {
 }
 
 function matchMember(arabicWords, latinWords) { return matchMemberArabic(arabicWords) || matchMemberLatin(latinWords); }
-
-// يحاول يحل تعارض الأسماء المتشابهة (زي عبدالرحمن×2) تلقائيًا عن طريق
-// مقارنة آخر 4 أرقام مستخرجة من عملية "تحويل داخلي" مع القيم المسجّلة مسبقًا
-// لكل عضو (MEMBER_LAST4). لو ما فيش تعارض أصلًا أو ما قدرش يحل التعارض،
-// يرجع بالسلوك القديم بالضبط (matchMember العادي). لا يستخدم آخر 4 أرقام
-// إطلاقًا لو الاسم أصلًا اتطابق بثقة على عضو واحد فقط.
-function matchMemberWithLast4(arabicWords, latinWords, detectedLast4) {
-  const arabicResult = matchMemberArabicWithCandidates(arabicWords);
-  if (arabicResult.name) return { name: arabicResult.name, candidates: [] };
-  if (arabicResult.candidates.length > 0) {
-    if (detectedLast4) {
-      const resolved = arabicResult.candidates.filter(c => MEMBER_LAST4[c] === detectedLast4);
-      if (resolved.length === 1) return { name: resolved[0], candidates: [] };
-    }
-    return { name: null, candidates: arabicResult.candidates };
-  }
-  const latinName = matchMemberLatin(latinWords);
-  return { name: latinName || null, candidates: [] };
-}
-
-// يستخرج أطول سلسلة أرقام متتالية (10 أرقام فأكثر) من النص الخام لعملية
-// "تحويل داخلي" فقط — بناءً على نمط ثابت لاحظناه في كشوفات الراجحي (رقم
-// حساب/مرجع المُرسل يظهر بين ACCT-/W و FR بنفس الرقم لكل تكرار لنفس
-// الشخص). لا يُستخدم إطلاقًا لأنواع العمليات الأخرى (أمر مستديم/حوالات
-// واردة) لأن الرقم الظاهر فيها مرجع عملية بنكي عام، وليس رقم حساب المُرسل.
-function extractAccountLast4_(rawNoteText) {
-  const digitRuns = String(rawNoteText || '').match(/\d{10,}/g);
-  if (!digitRuns || !digitRuns.length) return '';
-  const longest = digitRuns.reduce((a, b) => (b.length > a.length ? b : a));
-  return longest.slice(-4);
-}
 
 let adminKeyValue = "";
 let reviewRows = [];
@@ -1110,7 +1065,7 @@ const ADMIN_ACTIONS = [
 
 function openAdminPanel() {
   const mount = document.getElementById('adminMount');
-  const memberOptions = `<option value="">— اختر عضوًا —</option>${MEMBERS.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(memberLabelWithLast4_(n))}</option>`).join('')}`;
+  const memberOptions = `<option value="">— اختر عضوًا —</option>${MEMBERS.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')}`;
   mount.innerHTML = `
     <div class="admin-overlay" id="adminOverlay">
       <div class="admin-modal">
@@ -1142,7 +1097,6 @@ function openAdminPanel() {
           <div class="admin-field"><label>البريد الإلكتروني (اختياري)</label><input type="email" id="newMemberEmail" placeholder="example@email.com" autocomplete="off"></div>
           <div class="admin-field"><label>رقم الجوال (اختياري)</label><input type="tel" id="newMemberPhone" placeholder="05xxxxxxxx" autocomplete="off"></div>
           <div class="admin-field"><label>الاسم بالإنجليزي كما يظهر في كشف الحساب (اختياري)</label><input type="text" id="newMemberEnglish" placeholder="KHALID ABDULLAH" autocomplete="off" style="direction:ltr; text-align:left;"><div class="admin-note">يُستخدم لمطابقة حوالات "أمر مستديم" تلقائيًا.</div></div>
-          <div class="admin-field"><label>آخر 4 أرقام من رقم الحساب (اختياري)</label><input type="text" id="newMemberAccountLast4" placeholder="1234" maxlength="4" inputmode="numeric" autocomplete="off" style="direction:ltr; text-align:left;"><div class="admin-note">مرجع بصري فقط لمساعدتك يدويًا عند تشابه الأسماء أثناء مراجعة الحوالات — لا يُستخدم في أي مطابقة تلقائية.</div></div>
           <div class="admin-actions"><button class="admin-btn" id="addMemberBtn">إضافة العضو</button></div>
           <div id="addMemberMsg"></div>
         </div>
@@ -1156,7 +1110,6 @@ function openAdminPanel() {
           <div class="admin-field"><label>البريد الإلكتروني (اختياري)</label><input type="email" id="editMemberEmail" placeholder="اتركه فارغًا للإبقاء على القيمة الحالية" autocomplete="off"></div>
           <div class="admin-field"><label>رقم الجوال (اختياري)</label><input type="tel" id="editMemberPhone" placeholder="اتركه فارغًا للإبقاء على القيمة الحالية" autocomplete="off"></div>
           <div class="admin-field"><label>الاسم بالإنجليزي (اختياري)</label><input type="text" id="editMemberEnglish" placeholder="اتركه فارغًا للإبقاء على القيمة الحالية" autocomplete="off" style="direction:ltr; text-align:left;"></div>
-          <div class="admin-field"><label>آخر 4 أرقام من رقم الحساب (اختياري)</label><input type="text" id="editMemberAccountLast4" placeholder="اتركه فارغًا للإبقاء على القيمة الحالية" maxlength="4" inputmode="numeric" autocomplete="off" style="direction:ltr; text-align:left;"></div>
           <div class="admin-note">أي حقل تتركه فارغًا يبقى دون تغيير. الحقول المُعبَّأة فقط هي التي تُحدَّث.</div>
           <div class="admin-actions"><button class="admin-btn" id="editMemberBtn">حفظ التعديلات</button></div>
           <div id="editMemberMsg"></div>
@@ -1235,7 +1188,6 @@ async function handleAddMember() {
   const emailInput = document.getElementById('newMemberEmail');
   const phoneInput = document.getElementById('newMemberPhone');
   const englishInput = document.getElementById('newMemberEnglish');
-  const accountLast4Input = document.getElementById('newMemberAccountLast4');
   const msgEl = document.getElementById('addMemberMsg');
   const name = nameInput.value.trim();
   if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً (أعلى النموذج).</div>'; return; }
@@ -1246,13 +1198,13 @@ async function handleAddMember() {
   addBtn.disabled = true;
   msgEl.innerHTML = '<div class="admin-msg">جاري الإضافة...</div>';
   try {
-    const payload = { action: 'addTransfers', adminKey: adminKeyValue, newMembers: [{ name, opType: opTypeInput.value || '', email: emailInput.value.trim(), phone: phoneInput.value.trim(), englishName: englishInput.value.trim().toUpperCase(), accountLast4: accountLast4Input.value.trim() }] };
+    const payload = { action: 'addTransfers', adminKey: adminKeyValue, newMembers: [{ name, opType: opTypeInput.value || '', email: emailInput.value.trim(), phone: phoneInput.value.trim(), englishName: englishInput.value.trim().toUpperCase() }] };
     const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await resp.json();
     recordAdminKeyOutcome_(result);
     if (result.success && result.addedMembers > 0) {
       msgEl.innerHTML = '<div class="admin-msg success">تمت إضافة العضو بنجاح، وأصبح متاحًا في قائمة رفع الكشوفات.</div>';
-      nameInput.value = ''; opTypeInput.value = ''; emailInput.value = ''; phoneInput.value = ''; englishInput.value = ''; accountLast4Input.value = '';
+      nameInput.value = ''; opTypeInput.value = ''; emailInput.value = ''; phoneInput.value = ''; englishInput.value = '';
       loadData();
     } else if (result.success && result.skippedDuplicates > 0) {
       msgEl.innerHTML = '<div class="admin-msg error">لم تتم الإضافة: الاسم موجود مسبقًا في الملف.</div>';
@@ -1410,14 +1362,13 @@ async function handleEditMember() {
   const emailInput = document.getElementById('editMemberEmail');
   const phoneInput = document.getElementById('editMemberPhone');
   const englishInput = document.getElementById('editMemberEnglish');
-  const accountLast4Input = document.getElementById('editMemberAccountLast4');
   const msgEl = document.getElementById('editMemberMsg');
   const memberName = memberSelect.value;
   const newName = newNameInput.value.trim();
   if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً (أعلى النموذج).</div>'; return; }
   if (isAdminKeyCachedInvalid_()) { msgEl.innerHTML = ADMIN_KEY_CACHED_INVALID_MSG; return; }
   if (!memberName) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء اختيار العضو المراد تعديله.</div>'; return; }
-  if (!newName && !opTypeInput.value && !emailInput.value.trim() && !phoneInput.value.trim() && !englishInput.value.trim() && !accountLast4Input.value.trim()) {
+  if (!newName && !opTypeInput.value && !emailInput.value.trim() && !phoneInput.value.trim() && !englishInput.value.trim()) {
     msgEl.innerHTML = '<div class="admin-msg error">الرجاء تعبئة حقل واحد على الأقل للتعديل.</div>';
     return;
   }
@@ -1430,8 +1381,7 @@ async function handleEditMember() {
     const payload = {
       action: 'updateMember', adminKey: adminKeyValue, memberName,
       newName, opType: opTypeInput.value || '', email: emailInput.value.trim(),
-      phone: phoneInput.value.trim(), englishName: englishInput.value.trim().toUpperCase(),
-      accountLast4: accountLast4Input.value.trim()
+      phone: phoneInput.value.trim(), englishName: englishInput.value.trim().toUpperCase()
     };
     const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await resp.json();
@@ -1439,7 +1389,7 @@ async function handleEditMember() {
     if (result.success) {
       const fieldsText = result.updatedFields && result.updatedFields.length ? result.updatedFields.join('، ') : 'لا شيء';
       msgEl.innerHTML = `<div class="admin-msg success">تم التحديث بنجاح (${escapeHtml(fieldsText)}).</div>`;
-      newNameInput.value = ''; opTypeInput.value = ''; emailInput.value = ''; phoneInput.value = ''; englishInput.value = ''; accountLast4Input.value = '';
+      newNameInput.value = ''; opTypeInput.value = ''; emailInput.value = ''; phoneInput.value = ''; englishInput.value = '';
       loadData();
     } else {
       msgEl.innerHTML = '<div class="admin-msg error">فشل التحديث: ' + escapeHtml(result.error || 'خطأ غير معروف') + '</div>';
@@ -1554,7 +1504,7 @@ async function extractTransactionsFromPdf(file) {
         const credit = creditItem ? parseFloat(creditItem.text.match(/[\d,]+\.\d{2}/)[0].replace(/,/g, '')) : 0;
         const debit = debitItem ? parseFloat(debitItem.text.match(/[\d,]+\.\d{2}/)[0].replace(/,/g, '')) : 0;
         if (credit > 0) {
-          active = { kind: 'transfer', id: 'r' + (rowIdCounter++), date: f.dateText, type: classifyType(pendingTypeText), isInternal: /داخلية/.test(pendingTypeText || ''), amount: credit.toFixed(2), arabicWords: [], latinWords: [], rawNote: '' };
+          active = { kind: 'transfer', id: 'r' + (rowIdCounter++), date: f.dateText, type: classifyType(pendingTypeText), amount: credit.toFixed(2), arabicWords: [], latinWords: [], rawNote: '' };
           transactions.push(active);
         } else if (debit > 0) {
           active = { kind: 'withdrawal', id: 'w' + (rowIdCounter++), date: f.dateText, rawType: pendingTypeText || 'تحويل', amount: debit.toFixed(2), arabicWords: [], latinWords: [], rawNote: '' };
@@ -1589,32 +1539,14 @@ async function extractTransactionsFromPdf(file) {
   lastExtractDebug = debug;
 
   const results = transactions.map(t => {
-    // آخر 4 أرقام حساب المُرسل: تُستخرج فقط من عمليات "تحويل داخلي" (النمط
-    // الوحيد اللي لاحظنا ثباته لنفس الشخص عبر تكرار العملية)، ولا تُستخدم
-    // إطلاقًا إلا لو الاسم اتعارض بين أكتر من عضو محتمل.
-    const detectedLast4 = t.isInternal ? extractAccountLast4_(t.rawNote) : '';
-    const matchResult = matchMemberWithLast4(t.arabicWords, t.latinWords, detectedLast4);
-    const matched = matchResult.name;
+    const matched = matchMember(t.arabicWords, t.latinWords);
     const wordsHint = t.arabicWords.join(' ') || t.latinWords.join(' ');
-
-    let rawHint;
-    if (matched) {
-      rawHint = wordsHint;
-    } else if (matchResult.candidates.length > 0) {
-      // تعارض حقيقي بين أكتر من عضو بنفس الاسم الأول — نعرض المرشحين (مع
-      // آخر 4 أرقام المسجّلة لكل واحد لو موجودة) والرقم المستخرج من الكشف،
-      // عشان الأدمن يفرّق بينهم بنفسه بالمعلومة اللي يعرفها. أول مرة يختار
-      // فيها يدويًا، النظام يحفظ الرقم تلقائيًا في ملف العضو (انظر
-      // addTransfers بالخادم)، فالمرات الجاية تتحل تلقائيًا بدون تدخل.
-      const candidateLabels = matchResult.candidates.map(c => memberLabelWithLast4_(c)).join(' / ');
-      rawHint = 'تعارض بين: ' + candidateLabels +
-        (detectedLast4 ? ' — آخر 4 أرقام في الكشف: ' + detectedLast4 : ' (لا يوجد رقم حساب واضح في هذه العملية للمقارنة)');
-    } else {
-      rawHint = wordsHint + (t.rawNote.trim() ? ' | خام: ' + t.rawNote.trim() : '');
-    }
-
-    return { id: t.id, date: t.date, name: matched || '', rawHint, type: t.type, amount: t.amount, accountLast4: detectedLast4 };
+    return { id: t.id, date: t.date, name: matched || '', wordsHint, rawHint: matched ? wordsHint : (wordsHint + (t.rawNote.trim() ? ' | خام: ' + t.rawNote.trim() : '')), type: t.type, amount: t.amount };
   });
+
+  const ambiguousRahman = results.filter(r => !r.name && r.wordsHint === 'عبدالرحمن');
+  if (ambiguousRahman.length === 2) { ambiguousRahman[0].name = 'عبدالرحمن عبدالله'; ambiguousRahman[1].name = 'عبدالرحمن مطير'; }
+  results.forEach(r => delete r.wordsHint);
 
   const withdrawalResults = withdrawals.map(w => {
     const detailWords = w.arabicWords.concat(w.latinWords);
@@ -1662,7 +1594,7 @@ async function handleParsePdf() {
 function renderReviewTable() {
   const area = document.getElementById('reviewArea');
   if (!reviewRows.length && !withdrawalRows.length) { area.innerHTML = ''; return; }
-  const memberOptions = (selected) => `<option value="">— اختر العضو —</option>` + MEMBERS.map(m => `<option value="${m}" ${m === selected ? 'selected' : ''}>${escapeHtml(memberLabelWithLast4_(m))}</option>`).join('');
+  const memberOptions = (selected) => `<option value="">— اختر العضو —</option>` + MEMBERS.map(m => `<option value="${m}" ${m === selected ? 'selected' : ''}>${m}</option>`).join('');
   const typeOptionsHtml = (selected) => TRANSFER_TYPES.map(t => `<option value="${t}" ${t === selected ? 'selected' : ''}>${t}</option>`).join('');
 
   let html = '';
@@ -1741,7 +1673,7 @@ async function handleSubmitRows() {
   try {
     const payload = {
       action: 'addTransfers', adminKey: adminKeyValue,
-      transfers: reviewRows.map(r => ({ date: r.date, name: r.name, type: r.type, amount: parseFloat(r.amount) || 0, accountLast4: r.accountLast4 || '' })),
+      transfers: reviewRows.map(r => ({ date: r.date, name: r.name, type: r.type, amount: parseFloat(r.amount) || 0 })),
       withdrawals: withdrawalRows.map(r => ({ date: r.date, opType: r.opType, details: r.details, amount: parseFloat(r.amount) || 0 }))
     };
     const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
