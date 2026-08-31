@@ -1060,7 +1060,8 @@ const ADMIN_ACTIONS = [
   { value: 'editMember', label: 'تعديل بيانات عضو' },
   { value: 'status', label: 'تغيير حالة السداد' },
   { value: 'deleteTransfer', label: 'حذف حوالة' },
-  { value: 'reviewDate', label: 'تحديث تاريخ آخر مراجعة' }
+  { value: 'reviewDate', label: 'تحديث تاريخ آخر مراجعة' },
+  { value: 'subscriptionAmount', label: 'قيمة الاشتراك الشهري' }
 ];
 
 function openAdminPanel() {
@@ -1154,6 +1155,16 @@ function openAdminPanel() {
           <div id="reviewDateMsg"></div>
         </div>
 
+        <div class="admin-section" data-section="subscriptionAmount">
+          <div class="admin-field">
+            <label>قيمة الاشتراك الشهري لكل عضو (ريال)</label>
+            <input type="number" id="subscriptionAmountInput" min="1" step="1" value="${lastLoadedData && lastLoadedData.subscriptionAmount ? lastLoadedData.subscriptionAmount : ''}">
+            <div class="admin-note">تُستخدم فقط في حساب "اكتمال الأشهر الستة" المعروض بالموقع، ولا تُغيّر آلية حساب متأخر/منتظم الحالية إطلاقًا (تلك تبقى معتمدة على تاريخ آخر حوالة فقط).</div>
+          </div>
+          <div class="admin-actions"><button class="admin-btn" id="setSubscriptionAmountBtn">تحديث القيمة</button></div>
+          <div id="subscriptionAmountMsg"></div>
+        </div>
+
       </div>
     </div>
   `;
@@ -1171,6 +1182,7 @@ function openAdminPanel() {
   document.getElementById('delTransferBtn').addEventListener('click', handleDeleteTransfer);
   document.getElementById('delTransferMemberSelect').addEventListener('change', handleDelTransferMemberChange);
   document.getElementById('setReviewDateBtn').addEventListener('click', handleSetReviewDate);
+  document.getElementById('setSubscriptionAmountBtn').addEventListener('click', handleSetSubscriptionAmount);
 
   const actionSelect = document.getElementById('adminActionSelect');
   const showSection = (val) => {
@@ -1416,6 +1428,33 @@ async function handleSetReviewDate() {
     recordAdminKeyOutcome_(result);
     if (result.success) {
       msgEl.innerHTML = `<div class="admin-msg success">تم تحديث تاريخ المراجعة إلى ${escapeHtml(result.reviewDate)} بنجاح — سيُعاد حساب حالة كل الأعضاء تلقائيًا.</div>`;
+      loadData();
+    } else {
+      msgEl.innerHTML = '<div class="admin-msg error">فشل التحديث: ' + escapeHtml(result.error || 'خطأ غير معروف') + '</div>';
+    }
+  } catch (err) {
+    msgEl.innerHTML = '<div class="admin-msg error">تعذّر الاتصال بالسكربت: ' + escapeHtml(err.message) + '</div>';
+  } finally { btn.disabled = false; }
+}
+
+async function handleSetSubscriptionAmount() {
+  const input = document.getElementById('subscriptionAmountInput');
+  const msgEl = document.getElementById('subscriptionAmountMsg');
+  if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً.</div>'; return; }
+  if (isAdminKeyCachedInvalid_()) { msgEl.innerHTML = ADMIN_KEY_CACHED_INVALID_MSG; return; }
+  const amount = Number(input.value);
+  if (!input.value || !amount || amount <= 0) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال قيمة اشتراك صحيحة (رقم موجب).</div>'; return; }
+  if (!confirm(`هل أنت متأكد من تحديث قيمة الاشتراك الشهري إلى ${amount} ريال؟ سيؤثر هذا على حساب "اكتمال الأشهر" المعروض بالموقع فقط.`)) return;
+  const btn = document.getElementById('setSubscriptionAmountBtn');
+  btn.disabled = true;
+  msgEl.innerHTML = '<div class="admin-msg">جاري التحديث...</div>';
+  try {
+    const payload = { action: 'setSubscriptionAmount', adminKey: adminKeyValue, subscriptionAmount: amount };
+    const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+    const result = await resp.json();
+    recordAdminKeyOutcome_(result);
+    if (result.success) {
+      msgEl.innerHTML = `<div class="admin-msg success">تم تحديث قيمة الاشتراك إلى ${escapeHtml(String(result.subscriptionAmount))} ريال بنجاح.</div>`;
       loadData();
     } else {
       msgEl.innerHTML = '<div class="admin-msg error">فشل التحديث: ' + escapeHtml(result.error || 'خطأ غير معروف') + '</div>';
