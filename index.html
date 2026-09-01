@@ -52,6 +52,8 @@
   --late-dim: rgba(255,122,104,0.16);
   --pending: #eeae4b;
   --pending-dim: rgba(238,174,75,0.16);
+  --new-member: #6bb6ff;
+  --new-member-dim: rgba(107,182,255,0.16);
   --shadow-card: 0 20px 50px rgba(0,0,0,0.35);
   --scrim: rgba(4,10,8,0.6);
 }
@@ -77,6 +79,8 @@
   --late-dim: rgba(217,72,58,0.10);
   --pending: #b9791e;
   --pending-dim: rgba(185,121,30,0.10);
+  --new-member: #1a73c4;
+  --new-member-dim: rgba(26,115,196,0.10);
   --shadow-card: 0 16px 40px rgba(18,33,28,0.10);
   --scrim: rgba(18,33,28,0.35);
 }
@@ -233,6 +237,7 @@ body.section-expenses { background: var(--bg-expenses); }
 .stat-cell .dot { width: 7px; height: 7px; border-radius: 50%; margin: 0 auto 8px; background: var(--ok); }
 .stat-cell.late .dot { background: var(--late); }
 .stat-cell.pending .dot { background: var(--pending); }
+.stat-cell.new .dot { background: var(--new-member); }
 .stat-cell .num { font-size: 27px; font-weight: 900; color: var(--text-1); }
 .stat-cell .label { font-size: var(--fs-tiny); color: var(--text-2); margin-top: 4px; font-weight: 700; }
 
@@ -270,6 +275,7 @@ section { margin-top: var(--sp-7); scroll-margin-top: var(--sp-5); }
 .pill.ok { background: var(--ok-dim); color: var(--ok); }
 .pill.late { background: var(--late-dim); color: var(--late); }
 .pill.pending { background: var(--pending-dim); color: var(--pending); }
+.pill.new { background: var(--new-member-dim); color: var(--new-member); }
 .pill .pdot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
 .late-list { display: flex; flex-direction: column; gap: 10px; }
@@ -430,6 +436,7 @@ section { margin-top: var(--sp-7); scroll-margin-top: var(--sp-5); }
 .review-table th { background: var(--surface-2); color: var(--text-2); padding: 8px 6px; position: sticky; top: 0; }
 .review-table td { padding: 6px; border-bottom: 1px solid var(--border); }
 .review-table input, .review-table select { width: 100%; min-width: 92px; border: 1px solid var(--border); border-radius: 6px; padding: 7px 6px; font-family: inherit; font-size: 13px; background: var(--surface); color: var(--text-1); }
+.review-table input.input-invalid { border-color: var(--late); background: var(--late-dim); }
 .review-table select.f-type { min-width: 118px; }
 .review-row-del { color: var(--late); background: none; border: none; cursor: pointer; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
 .review-row-del svg { width: 15px; height: 15px; }
@@ -614,12 +621,12 @@ async function loadData() {
 }
 
 function fmt(num) { return Number(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function statusLabel(status) { return status === 'ok' ? 'منتظم' : (status === 'pending' ? 'معلق' : 'متأخر'); }
-function statusIcon(status) { return status === 'ok' ? ICONS.checkCircle : (status === 'pending' ? ICONS.alertCircle : ICONS.alertTriangle); }
+function statusLabel(status) { return status === 'ok' ? 'منتظم' : (status === 'pending' ? 'معلق' : (status === 'new' ? 'عضو جديد' : 'متأخر')); }
+function statusIcon(status) { return status === 'ok' ? ICONS.checkCircle : (status === 'pending' ? ICONS.alertCircle : (status === 'new' ? ICONS.info : ICONS.alertTriangle)); }
 
 function memberRowHtml(m, idx, animated) {
   const cascadeAttrs = animated ? ` class="row-item cascade-item" data-cascade-idx="${idx}"` : ' class="row-item"';
-  const statusClass = m.status === 'ok' ? 'ok' : (m.status === 'pending' ? 'pending' : 'late');
+  const statusClass = m.status === 'ok' ? 'ok' : (m.status === 'pending' ? 'pending' : (m.status === 'new' ? 'new' : 'late'));
   return `
     <div${cascadeAttrs}>
       <div class="row-name">${escapeHtml(m.name)}</div>
@@ -671,6 +678,8 @@ function renderApp(d) {
   allMembersData = d.members;
   MEMBERS = d.members.map(m => m.name);
   MEMBER_ENGLISH = d.members.filter(m => m.englishName).map(m => ({ name: m.name, words: m.englishName.toUpperCase().split(/\s+/).filter(Boolean) }));
+  MEMBER_LAST4 = {};
+  d.members.forEach(m => { if (m.accountLast4) MEMBER_LAST4[m.name] = m.accountLast4; });
 
   const lateListHtml = d.lateMembers.length === 0
     ? `<div class="empty-late reveal">${ICONS.checkCircle}<span>جميع الأعضاء منتظمون في السداد لهذا الشهر.</span></div>`
@@ -694,7 +703,12 @@ function renderApp(d) {
   statsCells.push(`<div class="stat-cell"><div class="dot"></div><div class="num count-num" data-count="${d.okCount}">0</div><div class="label">منتظم</div></div>`);
   statsCells.push(`<div class="stat-cell late"><div class="dot"></div><div class="num count-num" data-count="${d.lateMembers.length}">0</div><div class="label">متأخر</div></div>`);
   const hasPending = (d.pendingCount || 0) > 0;
+  const hasNew = (d.newCount || 0) > 0;
   if (hasPending) statsCells.push(`<div class="stat-cell pending"><div class="dot"></div><div class="num count-num" data-count="${d.pendingCount}">0</div><div class="label">معلق</div></div>`);
+  if (hasNew) statsCells.push(`<div class="stat-cell new"><div class="dot"></div><div class="num count-num" data-count="${d.newCount}">0</div><div class="label">عضو جديد</div></div>`);
+  // شبكة البطاقات تتكيّف مع العدد الفعلي: عمودان لو كانت 2 أو 4 بطاقات
+  // (تناسق بصري أفضل من 4 أعمدة ضيقة على الجوال)، وثلاثة أعمدة لو كانت 3.
+  const bentoGridClass = (statsCells.length === 3) ? '' : ' two-col';
 
   document.getElementById('appContainer').innerHTML = `
     <div class="card hero-card">
@@ -705,7 +719,7 @@ function renderApp(d) {
         <div class="mini-stat income"><div class="mini-label">إجمالي المساهمات</div><div class="mini-value">${fmt(d.contributions)} ﷼</div></div>
         <div class="mini-stat expense"><div class="mini-label">إجمالي السحوبات</div><div class="mini-value">${fmt(d.expenses)} ﷼</div></div>
       </div>
-      <div class="stats-bento${hasPending ? '' : ' two-col'}">${statsCells.join('')}</div>
+      <div class="stats-bento${bentoGridClass}">${statsCells.join('')}</div>
       <div class="last-update">
         <div class="sync-status">تمت مزامنة البيانات بنجاح</div>
         <div class="update-title">آخر تحديث</div>
@@ -929,17 +943,81 @@ if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.clo
 
 const TRANSFER_TYPES = ["تحويل", "أمر مستديم"];
 
+/* =========================================================================
+   BANK_PROFILES — كل الفروق بين البنوك محصورة هنا. المحرك العام
+   (extractTransactionsFromPdf) لا يعرف اسم أي بنك ولا شكل كشفه، وبيتعامل
+   بس مع الخطافات (hooks) اللي كل بروفايل بيوفّرها. لإضافة بنك جديد:
+
+   1. اطبع نص الصفحة الأولى من كشف حقيقي لذلك البنك (أي console.log لعناصر
+      PDF.js) عشان تعرف: نص شعار/اسم البنك (لـ identify)، تسميات الأعمدة
+      الفعلية (دائن/مدين/الرصيد/التاريخ أو مرادفاتها)، نص التذييل المتكرر،
+      وصيغة التاريخ المستخدمة.
+   2. انسخ كائن alrajhi تحت بمفتاح جديد (مثلاً "alahli")، وعدّل كل خاصية
+      بالقيم الفعلية لذلك البنك.
+   3. isInternalTransferLine و extractAccountRef اختياريان تمامًا — لو مش
+      لاقي نمط مكافئ في كشف البنك الجديد، سيبهم يرجعوا false / '' (القيم
+      الافتراضية أدناه) بدل ما تخترع نمط غير موثوق.
+   4. مفيش داعي تسجّل البنك يدويًا لكل عائلة: detectBankProfile() بيفحص نص
+      الصفحة الأولى من كل كشف ويختار البروفايل المطابق تلقائيًا عبر
+      identify()، ويرجع لإعداد FAMILY_CONFIG.bankProfile بس لو محدش طابق.
+   ========================================================================= */
 const BANK_PROFILES = {
   alrajhi: {
     label: "مصرف الراجحي",
+    // يُستخدم لاكتشاف البنك تلقائيًا من نص الصفحة الأولى الخام — أي نص
+    // مميز يظهر في شعار/ترويسة كشف هذا البنك تحديدًا.
+    identify: (pageOneText) => /الراجحي|alrajhi/i.test(pageOneText || ''),
     defaultCols: { balance: 75, credit: 167, debit: 255, date: 508 },
     columnLabels: { balance: "الرصيد", credit: "دائن", debit: "مدين", date: "التاريخ" },
     colTolerance: 45,
+    // تنسيق التاريخ في هذا الكشف تحديدًا (افتراضي: يوم/شهر ميلادي مفصول
+    // بـ"/"، بترتيب سنة/شهر/يوم). بنك آخر ممكن يستخدم ترتيب أو فاصل مختلف.
+    dateRegex: /\d{4}\/\d{2}\/\d{2}/,
+    // مدى التقارب الرأسي (بوحدات PDF) لتجميع عناصر نفس السطر. القيمة
+    // الافتراضية (2.0) تناسب أغلب الكشوفات؛ عدّلها فقط لو كشف بنك معيّن
+    // بيفصل نفس السطر لأكتر من "شريحة" بالغلط أو العكس.
+    bandYTolerance: 2.0,
     arabicLabelStop: ["الوقت", "ملاحظة"],
     isTypeLine: (text) => /تحويل|مستديم|حوالة|حوالات|إيداع|ايداع/.test(text) && !/[A-Za-z]/.test(text) && !/\d/.test(text),
-    isFooterLine: (text) => /الوثيقة|مسؤولية المحافظة|confidential|holder/i.test(text)
+    isFooterLine: (text) => /الوثيقة|مسؤولية المحافظة|confidential|holder/i.test(text),
+    // يحدد هل نوع العملية "تحويل داخلي" (النوع الوحيد في صيغة الراجحي اللي
+    // لاحظنا فيه رقم حساب/مرجع ثابت للمُرسل عبر تكرار العملية). خاص بصيغة
+    // هذا البنك — أي بروفايل بنك جديد لازم يحدد نفس الدالة بمنطقه الخاص،
+    // أو يرجع false دايمًا لو مفيش نمط مكافئ معروف عنده.
+    isInternalTransferLine: (typeText) => /داخلية/.test(typeText || ''),
+    // يستخرج آخر 4 أرقام من النص الخام لعملية "تحويل داخلي"، بناءً على نمط
+    // الراجحي الملاحظ: رقم طويل (10 خانات فأكثر) بين ACCT-/W وFR، ثابت لنفس
+    // الشخص عبر تكرار العملية. أي بروفايل بنك جديد لازم يوفّر نمط استخراج
+    // خاص به (الصيغة مختلفة غالبًا من بنك لآخر)، أو يرجع '' دايمًا لو غير مدعوم.
+    extractAccountRef: (rawNoteText) => {
+      const digitRuns = String(rawNoteText || '').match(/\d{10,}/g);
+      if (!digitRuns || !digitRuns.length) return '';
+      const longest = digitRuns.reduce((a, b) => (b.length > a.length ? b : a));
+      return longest.slice(-4);
+    }
   }
 };
+
+// القيم الافتراضية العامة لو بروفايل معيّن ما حدّدش خاصية اختيارية (dateRegex
+// أو bandYTolerance) — بتخلي إضافة بروفايل جديد أسهل (تقدر تسيبها وتاخد
+// الافتراضي لحد ما تتأكد إنها محتاجة قيمة مختلفة).
+const DEFAULT_DATE_REGEX = /\d{4}\/\d{2}\/\d{2}/;
+const DEFAULT_BAND_Y_TOLERANCE = 2.0;
+
+// يفحص نص الصفحة الأولى الخام ويختار بروفايل البنك المطابق تلقائيًا عبر
+// identify() لكل بروفايل مسجَّل. لو محدش طابق (بنك غير مُضاف بعد، أو نص
+// الصفحة الأولى غير حاسم)، يرجع للإعداد اليدوي في FAMILY_CONFIG كخط رجعة
+// آمن، ويُعلّم النتيجة كـ"غير مكتشف تلقائيًا" عشان تظهر تنبيهًا للأدمن.
+function detectBankProfile(pageOneText) {
+  for (const key in BANK_PROFILES) {
+    const p = BANK_PROFILES[key];
+    if (typeof p.identify === 'function' && p.identify(pageOneText)) {
+      return { profile: p, autoDetected: true, key };
+    }
+  }
+  const fallback = getActiveBankProfile();
+  return { profile: fallback, autoDetected: false, key: FAMILY_CONFIG.bankProfile };
+}
 
 function getActiveBankProfile() {
   const profile = BANK_PROFILES[FAMILY_CONFIG.bankProfile];
@@ -950,6 +1028,10 @@ const DEFAULT_COLS = getActiveBankProfile().defaultCols;
 
 let MEMBERS = [];
 let MEMBER_ENGLISH = [];
+// خريطة (اسم العضو → آخر 4 أرقام من حسابه) — مرجع بصري فقط لمساعدة الأدمن
+// يدويًا عند تشابه الأسماء في قوائم الاختيار (لا علاقة لها بأي مطابقة تلقائية).
+let MEMBER_LAST4 = {};
+function memberLabelWithLast4_(name) { return MEMBER_LAST4[name] ? `${name} (…${MEMBER_LAST4[name]})` : name; }
 
 const TRANSLIT = {
   "عبدالله": ["ABDULLAH","ABDALLAH","ABDULLA"], "مطير": ["MUTAIR","MOTEER","MTEER","MUTEER","MOTAIR","MOTHIR"],
@@ -967,16 +1049,25 @@ const TRANSLIT = {
 function normArabic(s) { return String(s).replace(/\s+/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه'); }
 
 function matchMemberArabic(arabicWords) {
-  if (!arabicWords || !arabicWords.length) return null;
+  return matchMemberArabicWithCandidates(arabicWords).name;
+}
+
+// نفس منطق matchMemberArabic الأصلي بالضبط، لكن يُرجع أيضًا قائمة المرشحين
+// المتعارضين (لو فيه أكتر من عضو محتمل) بدل ما يكتفي بإرجاع null بصمت —
+// عشان نقدر نحاول نحل التعارض عبر آخر 4 أرقام الحساب (matchMemberWithLast4).
+function matchMemberArabicWithCandidates(arabicWords) {
+  if (!arabicWords || !arabicWords.length) return { name: null, candidates: [] };
   const joined = normArabic(arabicWords.join(''));
   let candidates = MEMBERS.filter(m => joined.indexOf(normArabic(m)) === 0);
-  if (candidates.length === 1) return candidates[0];
+  if (candidates.length === 1) return { name: candidates[0], candidates: [] };
+  let ambiguous = candidates.length > 1 ? candidates : [];
   if (arabicWords.length === 1) {
     const w = normArabic(arabicWords[0]);
-    candidates = MEMBERS.filter(m => normArabic(m.split(' ')[0]) === w);
-    if (candidates.length === 1) return candidates[0];
+    const wordCandidates = MEMBERS.filter(m => normArabic(m.split(' ')[0]) === w);
+    if (wordCandidates.length === 1) return { name: wordCandidates[0], candidates: [] };
+    if (wordCandidates.length > 1) ambiguous = wordCandidates;
   }
-  return null;
+  return { name: null, candidates: ambiguous };
 }
 
 function matchMemberLatin(latinWords) {
@@ -997,6 +1088,29 @@ function matchMemberLatin(latinWords) {
 }
 
 function matchMember(arabicWords, latinWords) { return matchMemberArabic(arabicWords) || matchMemberLatin(latinWords); }
+
+// يحاول يحل تعارض الأسماء المتشابهة (زي عبدالرحمن×2) تلقائيًا عن طريق
+// مقارنة آخر 4 أرقام مستخرجة من عملية "تحويل داخلي" مع القيم المسجّلة مسبقًا
+// لكل عضو (MEMBER_LAST4). لو ما فيش تعارض أصلًا أو ما قدرش يحل التعارض،
+// يرجع بالسلوك القديم بالضبط (matchMember العادي). لا يستخدم آخر 4 أرقام
+// إطلاقًا لو الاسم أصلًا اتطابق بثقة على عضو واحد فقط.
+function matchMemberWithLast4(arabicWords, latinWords, detectedLast4) {
+  const arabicResult = matchMemberArabicWithCandidates(arabicWords);
+  if (arabicResult.name) return { name: arabicResult.name, candidates: [] };
+  if (arabicResult.candidates.length > 0) {
+    if (detectedLast4) {
+      const resolved = arabicResult.candidates.filter(c => MEMBER_LAST4[c] === detectedLast4);
+      if (resolved.length === 1) return { name: resolved[0], candidates: [] };
+    }
+    return { name: null, candidates: arabicResult.candidates };
+  }
+  const latinName = matchMemberLatin(latinWords);
+  return { name: latinName || null, candidates: [] };
+}
+
+// ملاحظة: استخراج آخر 4 أرقام الحساب بقى جزء من بروفايل البنك (انظر
+// BANK_PROFILES.alrajhi.extractAccountRef) بدل ما يكون دالة عامة مستقلة —
+// عشان أي بروفايل بنك جديد يقدر يوفّر نمط استخراج خاص بيه أو يعطّلها.
 
 let adminKeyValue = "";
 let reviewRows = [];
@@ -1066,7 +1180,7 @@ const ADMIN_ACTIONS = [
 
 function openAdminPanel() {
   const mount = document.getElementById('adminMount');
-  const memberOptions = `<option value="">— اختر عضوًا —</option>${MEMBERS.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('')}`;
+  const memberOptions = `<option value="">— اختر عضوًا —</option>${MEMBERS.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(memberLabelWithLast4_(n))}</option>`).join('')}`;
   mount.innerHTML = `
     <div class="admin-overlay" id="adminOverlay">
       <div class="admin-modal">
@@ -1098,6 +1212,7 @@ function openAdminPanel() {
           <div class="admin-field"><label>البريد الإلكتروني (اختياري)</label><input type="email" id="newMemberEmail" placeholder="example@email.com" autocomplete="off"></div>
           <div class="admin-field"><label>رقم الجوال (اختياري)</label><input type="tel" id="newMemberPhone" placeholder="05xxxxxxxx" autocomplete="off"></div>
           <div class="admin-field"><label>الاسم بالإنجليزي كما يظهر في كشف الحساب (اختياري)</label><input type="text" id="newMemberEnglish" placeholder="KHALID ABDULLAH" autocomplete="off" style="direction:ltr; text-align:left;"><div class="admin-note">يُستخدم لمطابقة حوالات "أمر مستديم" تلقائيًا.</div></div>
+          <div class="admin-field"><label>آخر 4 أرقام من رقم الحساب (اختياري)</label><input type="text" id="newMemberAccountLast4" placeholder="1234" maxlength="4" inputmode="numeric" autocomplete="off" style="direction:ltr; text-align:left;"><div class="admin-note">مرجع بصري فقط لمساعدتك يدويًا عند تشابه الأسماء أثناء مراجعة الحوالات — لا يُستخدم في أي مطابقة تلقائية.</div></div>
           <div class="admin-actions"><button class="admin-btn" id="addMemberBtn">إضافة العضو</button></div>
           <div id="addMemberMsg"></div>
         </div>
@@ -1111,6 +1226,7 @@ function openAdminPanel() {
           <div class="admin-field"><label>البريد الإلكتروني (اختياري)</label><input type="email" id="editMemberEmail" placeholder="اتركه فارغًا للإبقاء على القيمة الحالية" autocomplete="off"></div>
           <div class="admin-field"><label>رقم الجوال (اختياري)</label><input type="tel" id="editMemberPhone" placeholder="اتركه فارغًا للإبقاء على القيمة الحالية" autocomplete="off"></div>
           <div class="admin-field"><label>الاسم بالإنجليزي (اختياري)</label><input type="text" id="editMemberEnglish" placeholder="اتركه فارغًا للإبقاء على القيمة الحالية" autocomplete="off" style="direction:ltr; text-align:left;"></div>
+          <div class="admin-field"><label>آخر 4 أرقام من رقم الحساب (اختياري)</label><input type="text" id="editMemberAccountLast4" placeholder="اتركه فارغًا للإبقاء على القيمة الحالية" maxlength="4" inputmode="numeric" autocomplete="off" style="direction:ltr; text-align:left;"></div>
           <div class="admin-note">أي حقل تتركه فارغًا يبقى دون تغيير. الحقول المُعبَّأة فقط هي التي تُحدَّث.</div>
           <div class="admin-actions"><button class="admin-btn" id="editMemberBtn">حفظ التعديلات</button></div>
           <div id="editMemberMsg"></div>
@@ -1200,6 +1316,7 @@ async function handleAddMember() {
   const emailInput = document.getElementById('newMemberEmail');
   const phoneInput = document.getElementById('newMemberPhone');
   const englishInput = document.getElementById('newMemberEnglish');
+  const accountLast4Input = document.getElementById('newMemberAccountLast4');
   const msgEl = document.getElementById('addMemberMsg');
   const name = nameInput.value.trim();
   if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً (أعلى النموذج).</div>'; return; }
@@ -1210,13 +1327,13 @@ async function handleAddMember() {
   addBtn.disabled = true;
   msgEl.innerHTML = '<div class="admin-msg">جاري الإضافة...</div>';
   try {
-    const payload = { action: 'addTransfers', adminKey: adminKeyValue, newMembers: [{ name, opType: opTypeInput.value || '', email: emailInput.value.trim(), phone: phoneInput.value.trim(), englishName: englishInput.value.trim().toUpperCase() }] };
+    const payload = { action: 'addTransfers', adminKey: adminKeyValue, newMembers: [{ name, opType: opTypeInput.value || '', email: emailInput.value.trim(), phone: phoneInput.value.trim(), englishName: englishInput.value.trim().toUpperCase(), accountLast4: accountLast4Input.value.trim() }] };
     const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await resp.json();
     recordAdminKeyOutcome_(result);
     if (result.success && result.addedMembers > 0) {
       msgEl.innerHTML = '<div class="admin-msg success">تمت إضافة العضو بنجاح، وأصبح متاحًا في قائمة رفع الكشوفات.</div>';
-      nameInput.value = ''; opTypeInput.value = ''; emailInput.value = ''; phoneInput.value = ''; englishInput.value = '';
+      nameInput.value = ''; opTypeInput.value = ''; emailInput.value = ''; phoneInput.value = ''; englishInput.value = ''; accountLast4Input.value = '';
       loadData();
     } else if (result.success && result.skippedDuplicates > 0) {
       msgEl.innerHTML = '<div class="admin-msg error">لم تتم الإضافة: الاسم موجود مسبقًا في الملف.</div>';
@@ -1374,13 +1491,14 @@ async function handleEditMember() {
   const emailInput = document.getElementById('editMemberEmail');
   const phoneInput = document.getElementById('editMemberPhone');
   const englishInput = document.getElementById('editMemberEnglish');
+  const accountLast4Input = document.getElementById('editMemberAccountLast4');
   const msgEl = document.getElementById('editMemberMsg');
   const memberName = memberSelect.value;
   const newName = newNameInput.value.trim();
   if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً (أعلى النموذج).</div>'; return; }
   if (isAdminKeyCachedInvalid_()) { msgEl.innerHTML = ADMIN_KEY_CACHED_INVALID_MSG; return; }
   if (!memberName) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء اختيار العضو المراد تعديله.</div>'; return; }
-  if (!newName && !opTypeInput.value && !emailInput.value.trim() && !phoneInput.value.trim() && !englishInput.value.trim()) {
+  if (!newName && !opTypeInput.value && !emailInput.value.trim() && !phoneInput.value.trim() && !englishInput.value.trim() && !accountLast4Input.value.trim()) {
     msgEl.innerHTML = '<div class="admin-msg error">الرجاء تعبئة حقل واحد على الأقل للتعديل.</div>';
     return;
   }
@@ -1393,7 +1511,8 @@ async function handleEditMember() {
     const payload = {
       action: 'updateMember', adminKey: adminKeyValue, memberName,
       newName, opType: opTypeInput.value || '', email: emailInput.value.trim(),
-      phone: phoneInput.value.trim(), englishName: englishInput.value.trim().toUpperCase()
+      phone: phoneInput.value.trim(), englishName: englishInput.value.trim().toUpperCase(),
+      accountLast4: accountLast4Input.value.trim()
     };
     const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
     const result = await resp.json();
@@ -1401,7 +1520,7 @@ async function handleEditMember() {
     if (result.success) {
       const fieldsText = result.updatedFields && result.updatedFields.length ? result.updatedFields.join('، ') : 'لا شيء';
       msgEl.innerHTML = `<div class="admin-msg success">تم التحديث بنجاح (${escapeHtml(fieldsText)}).</div>`;
-      newNameInput.value = ''; opTypeInput.value = ''; emailInput.value = ''; phoneInput.value = ''; englishInput.value = '';
+      newNameInput.value = ''; opTypeInput.value = ''; emailInput.value = ''; phoneInput.value = ''; englishInput.value = ''; accountLast4Input.value = '';
       loadData();
     } else {
       msgEl.innerHTML = '<div class="admin-msg error">فشل التحديث: ' + escapeHtml(result.error || 'خطأ غير معروف') + '</div>';
@@ -1480,14 +1599,24 @@ function wordsFromBandItems(bandItems, arabicLabelStopSet) {
 function classifyType(typeText) { return /مستديم/.test(typeText || '') ? 'أمر مستديم' : 'تحويل'; }
 
 async function extractTransactionsFromPdf(file) {
-  const profile = getActiveBankProfile();
-  const arabicLabelStopSet = new Set(profile.arabicLabelStop || []);
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+
+  // اكتشاف البنك تلقائيًا من نص الصفحة الأولى، قبل أي معالجة هيكلية —
+  // عشان باقي الدالة تشتغل بالبروفايل الصح من أول سطر، سواء الراجحي أو
+  // أي بنك جديد اتسجّل لاحقًا في BANK_PROFILES.
+  const page1ForDetect = await pdf.getPage(1);
+  const page1Content = await page1ForDetect.getTextContent();
+  const page1RawText = page1Content.items.map(it => fixBidi(it.str)).join(' ');
+  const detection = detectBankProfile(page1RawText);
+  const profile = detection.profile;
+  const dateRegex = profile.dateRegex || DEFAULT_DATE_REGEX;
+  const bandYTolerance = profile.bandYTolerance || DEFAULT_BAND_Y_TOLERANCE;
+  const arabicLabelStopSet = new Set(profile.arabicLabelStop || []);
   const transactions = [];
   const withdrawals = [];
   let lastCols = null;
-  const debug = { pages: pdf.numPages, perPage: [] };
+  const debug = { pages: pdf.numPages, perPage: [], bankDetected: profile.label, bankAutoDetected: detection.autoDetected };
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p);
@@ -1498,7 +1627,7 @@ async function extractTransactionsFromPdf(file) {
     const bands = [];
     let cur = [], lastY = null;
     items.forEach(it => {
-      if (lastY === null || Math.abs(it.y - lastY) <= 2.0) cur.push(it);
+      if (lastY === null || Math.abs(it.y - lastY) <= bandYTolerance) cur.push(it);
       else { bands.push(cur); cur = [it]; }
       lastY = it.y;
     });
@@ -1522,8 +1651,8 @@ async function extractTransactionsFromPdf(file) {
     const near = (x, center) => Math.abs(x - center) <= tolerance;
 
     const flags = bands.map(band => {
-      const dateItem = band.find(i => near(i.x, cols.date) && /\d{4}\/\d{2}\/\d{2}/.test(i.text));
-      const dateMatch = dateItem ? dateItem.text.match(/\d{4}\/\d{2}\/\d{2}/)[0] : null;
+      const dateItem = band.find(i => near(i.x, cols.date) && dateRegex.test(i.text));
+      const dateMatch = dateItem ? dateItem.text.match(dateRegex)[0] : null;
       return { band, isAnchor: !!dateItem, dateText: dateMatch };
     });
     pageDebug.anchorsOnPage = flags.filter(f => f.isAnchor).length;
@@ -1535,7 +1664,7 @@ async function extractTransactionsFromPdf(file) {
 
     flags.forEach((f) => {
       if (f.isAnchor) {
-        const dateItem = f.band.find(i => near(i.x, cols.date) && /\d{4}\/\d{2}\/\d{2}/.test(i.text));
+        const dateItem = f.band.find(i => near(i.x, cols.date) && dateRegex.test(i.text));
         const findAmountItem = (center) => f.band.find(i => near(i.x, center) && /[\d,]+\.\d{2}/.test(i.text));
         const creditItem = findAmountItem(cols.credit);
         const debitItem = findAmountItem(cols.debit);
@@ -1543,7 +1672,7 @@ async function extractTransactionsFromPdf(file) {
         const credit = creditItem ? parseFloat(creditItem.text.match(/[\d,]+\.\d{2}/)[0].replace(/,/g, '')) : 0;
         const debit = debitItem ? parseFloat(debitItem.text.match(/[\d,]+\.\d{2}/)[0].replace(/,/g, '')) : 0;
         if (credit > 0) {
-          active = { kind: 'transfer', id: 'r' + (rowIdCounter++), date: f.dateText, type: classifyType(pendingTypeText), amount: credit.toFixed(2), arabicWords: [], latinWords: [], rawNote: '' };
+          active = { kind: 'transfer', id: 'r' + (rowIdCounter++), date: f.dateText, type: classifyType(pendingTypeText), isInternal: profile.isInternalTransferLine ? profile.isInternalTransferLine(pendingTypeText) : false, amount: credit.toFixed(2), arabicWords: [], latinWords: [], rawNote: '' };
           transactions.push(active);
         } else if (debit > 0) {
           active = { kind: 'withdrawal', id: 'w' + (rowIdCounter++), date: f.dateText, rawType: pendingTypeText || 'تحويل', amount: debit.toFixed(2), arabicWords: [], latinWords: [], rawNote: '' };
@@ -1578,14 +1707,32 @@ async function extractTransactionsFromPdf(file) {
   lastExtractDebug = debug;
 
   const results = transactions.map(t => {
-    const matched = matchMember(t.arabicWords, t.latinWords);
+    // آخر 4 أرقام حساب المُرسل: تُستخرج فقط من عمليات "تحويل داخلي" (النمط
+    // الوحيد اللي لاحظنا ثباته لنفس الشخص عبر تكرار العملية)، ولا تُستخدم
+    // إطلاقًا إلا لو الاسم اتعارض بين أكتر من عضو محتمل.
+    const detectedLast4 = (t.isInternal && profile.extractAccountRef) ? profile.extractAccountRef(t.rawNote) : '';
+    const matchResult = matchMemberWithLast4(t.arabicWords, t.latinWords, detectedLast4);
+    const matched = matchResult.name;
     const wordsHint = t.arabicWords.join(' ') || t.latinWords.join(' ');
-    return { id: t.id, date: t.date, name: matched || '', wordsHint, rawHint: matched ? wordsHint : (wordsHint + (t.rawNote.trim() ? ' | خام: ' + t.rawNote.trim() : '')), type: t.type, amount: t.amount };
-  });
 
-  const ambiguousRahman = results.filter(r => !r.name && r.wordsHint === 'عبدالرحمن');
-  if (ambiguousRahman.length === 2) { ambiguousRahman[0].name = 'عبدالرحمن عبدالله'; ambiguousRahman[1].name = 'عبدالرحمن مطير'; }
-  results.forEach(r => delete r.wordsHint);
+    let rawHint;
+    if (matched) {
+      rawHint = wordsHint;
+    } else if (matchResult.candidates.length > 0) {
+      // تعارض حقيقي بين أكتر من عضو بنفس الاسم الأول — نعرض المرشحين (مع
+      // آخر 4 أرقام المسجّلة لكل واحد لو موجودة) والرقم المستخرج من الكشف،
+      // عشان الأدمن يفرّق بينهم بنفسه بالمعلومة اللي يعرفها. أول مرة يختار
+      // فيها يدويًا، النظام يحفظ الرقم تلقائيًا في ملف العضو (انظر
+      // addTransfers بالخادم)، فالمرات الجاية تتحل تلقائيًا بدون تدخل.
+      const candidateLabels = matchResult.candidates.map(c => memberLabelWithLast4_(c)).join(' / ');
+      rawHint = 'تعارض بين: ' + candidateLabels +
+        (detectedLast4 ? ' — آخر 4 أرقام في الكشف: ' + detectedLast4 : ' (لا يوجد رقم حساب واضح في هذه العملية للمقارنة)');
+    } else {
+      rawHint = wordsHint + (t.rawNote.trim() ? ' | خام: ' + t.rawNote.trim() : '');
+    }
+
+    return { id: t.id, date: t.date, name: matched || '', rawHint, type: t.type, amount: t.amount, accountLast4: detectedLast4 };
+  });
 
   const withdrawalResults = withdrawals.map(w => {
     const detailWords = w.arabicWords.concat(w.latinWords);
@@ -1623,8 +1770,14 @@ async function handleParsePdf() {
       const unmatched = reviewRows.filter(r => !r.name).length;
       let msg = unmatched ? `تم استخراج ${reviewRows.length} حوالة عضو (${unmatched} منها بحاجة لاختيار الاسم يدوياً)` : `تم استخراج ${reviewRows.length} حوالة عضو وتمّت مطابقة كل الأسماء تلقائياً`;
       if (withdrawalRows.length) msg += ` و${withdrawalRows.length} عملية سحب من حساب الصندوق`;
-      msg += '. راجع البيانات أدناه قبل الإرسال.';
-      showAdminMsgPlain(msg, 'success');
+      const d = lastExtractDebug;
+      if (d && !d.bankAutoDetected) {
+        msg += `. تنبيه: لم يتم التعرف تلقائيًا على بنك هذا الكشف، فتم استخدام إعداد "${escapeHtml(d.bankDetected)}" الافتراضي — تأكد إن الكشف من نفس البنك قبل الاعتماد على النتائج.`;
+      } else if (d) {
+        msg += `. تم التعرف على الكشف كـ"${escapeHtml(d.bankDetected)}" تلقائيًا.`;
+      }
+      msg += ' راجع البيانات أدناه قبل الإرسال.';
+      showAdminMsgPlain(msg, unmatched || (d && !d.bankAutoDetected) ? '' : 'success');
     }
     renderReviewTable();
   } catch (err) { showAdminMsgPlain('تعذّرت قراءة الملف: ' + err.message, 'error'); }
@@ -1633,7 +1786,7 @@ async function handleParsePdf() {
 function renderReviewTable() {
   const area = document.getElementById('reviewArea');
   if (!reviewRows.length && !withdrawalRows.length) { area.innerHTML = ''; return; }
-  const memberOptions = (selected) => `<option value="">— اختر العضو —</option>` + MEMBERS.map(m => `<option value="${m}" ${m === selected ? 'selected' : ''}>${m}</option>`).join('');
+  const memberOptions = (selected) => `<option value="">— اختر العضو —</option>` + MEMBERS.map(m => `<option value="${m}" ${m === selected ? 'selected' : ''}>${escapeHtml(memberLabelWithLast4_(m))}</option>`).join('');
   const typeOptionsHtml = (selected) => TRANSFER_TYPES.map(t => `<option value="${t}" ${t === selected ? 'selected' : ''}>${t}</option>`).join('');
 
   let html = '';
@@ -1660,12 +1813,12 @@ function renderReviewTable() {
         <td><input type="text" class="f-date" value="${escapeHtml(r.date)}" placeholder="YYYY/MM/DD"></td>
         <td><select class="f-name">${memberOptions(r.name)}</select>${r.rawHint ? `<div class="admin-note" style="margin-top:3px;">${escapeHtml(r.rawHint)}</div>` : ''}</td>
         <td><select class="f-type">${typeOptionsHtml(r.type)}</select></td>
-        <td><input type="text" class="f-amount" value="${escapeHtml(r.amount)}" placeholder="0.00"></td>
+        <td><input type="number" step="0.01" min="0" class="f-amount" value="${escapeHtml(r.amount)}" placeholder="0.00"></td>
         <td><button class="review-row-del" title="حذف الصف">${ICONS.close}</button></td>
       </tr>`).join('');
     tbody.querySelectorAll('tr').forEach(tr => {
       const id = tr.getAttribute('data-id');
-      tr.querySelector('.f-date').addEventListener('input', e => updateRow(id, 'date', e.target.value));
+      tr.querySelector('.f-date').addEventListener('input', e => { updateRow(id, 'date', e.target.value); toggleDateFieldValidity_(e.target); });
       tr.querySelector('.f-name').addEventListener('change', e => updateRow(id, 'name', e.target.value));
       tr.querySelector('.f-type').addEventListener('change', e => updateRow(id, 'type', e.target.value));
       tr.querySelector('.f-amount').addEventListener('input', e => updateRow(id, 'amount', e.target.value));
@@ -1681,12 +1834,12 @@ function renderReviewTable() {
         <td><input type="text" class="w-date" value="${escapeHtml(r.date)}" placeholder="YYYY/MM/DD"></td>
         <td><input type="text" class="w-optype" value="${escapeHtml(r.opType)}" placeholder="نوع العملية"></td>
         <td><input type="text" class="w-details" value="${escapeHtml(r.details)}" placeholder="التفاصيل"></td>
-        <td><input type="text" class="w-amount" value="${escapeHtml(r.amount)}" placeholder="0.00"></td>
+        <td><input type="number" step="0.01" min="0" class="w-amount" value="${escapeHtml(r.amount)}" placeholder="0.00"></td>
         <td><button class="review-row-del" title="حذف الصف">${ICONS.close}</button></td>
       </tr>`).join('');
     wbody.querySelectorAll('tr').forEach(tr => {
       const id = tr.getAttribute('data-id');
-      tr.querySelector('.w-date').addEventListener('input', e => updateWithdrawalRow(id, 'date', e.target.value));
+      tr.querySelector('.w-date').addEventListener('input', e => { updateWithdrawalRow(id, 'date', e.target.value); toggleDateFieldValidity_(e.target); });
       tr.querySelector('.w-optype').addEventListener('input', e => updateWithdrawalRow(id, 'opType', e.target.value));
       tr.querySelector('.w-details').addEventListener('input', e => updateWithdrawalRow(id, 'details', e.target.value));
       tr.querySelector('.w-amount').addEventListener('input', e => updateWithdrawalRow(id, 'amount', e.target.value));
@@ -1694,6 +1847,19 @@ function renderReviewTable() {
     });
   }
   document.getElementById('submitRowsBtn').addEventListener('click', handleSubmitRows);
+}
+
+// isValidDateFormat_ — يتحقق أن نص التاريخ بصيغة yyyy/MM/dd بالضبط (نفس
+// الصيغة التي يتوقعها parseDateStr بالخلفية). لا يتحقق من صحة التاريخ
+// تقويميًا (مثل 2026/13/40) عمدًا — فقط من الصيغة العامة، لأن أي تاريخ
+// غير صالح فعليًا سيُرفض لاحقًا بشكل طبيعي عبر Date الناتجة (isNaN)، وهذا
+// تحقق سريع بالواجهة يمنع الخطأ الأشيع (كتابة يدوية بصيغة مختلفة تمامًا).
+function isValidDateFormat_(str) {
+  return /^\d{4}\/\d{2}\/\d{2}$/.test(String(str || '').trim());
+}
+function toggleDateFieldValidity_(inputEl) {
+  const valid = isValidDateFormat_(inputEl.value);
+  inputEl.classList.toggle('input-invalid', inputEl.value.trim() !== '' && !valid);
 }
 
 function updateRow(id, field, value) { const row = reviewRows.find(r => r.id === id); if (row) row[field] = value; }
@@ -1706,13 +1872,19 @@ async function handleSubmitRows() {
   const invalidWithdrawals = withdrawalRows.some(r => !r.date || !r.amount);
   if (invalidTransfers) { showAdminMsgPlain('تأكد من اختيار العضو وتعبئة التاريخ والمبلغ لكل صف حوالة قبل الإرسال.', 'error'); return; }
   if (invalidWithdrawals) { showAdminMsgPlain('تأكد من تعبئة التاريخ والمبلغ لكل صف سحب قبل الإرسال.', 'error'); return; }
+  const badTransferDates = reviewRows.some(r => !isValidDateFormat_(r.date));
+  const badWithdrawalDates = withdrawalRows.some(r => !isValidDateFormat_(r.date));
+  if (badTransferDates || badWithdrawalDates) {
+    showAdminMsgPlain('صيغة التاريخ يجب أن تكون بالضبط yyyy/mm/dd (مثال: 2026/09/01) — تحقق من الحقول المظلَّلة بالأحمر.', 'error');
+    return;
+  }
   showAdminMsgPlain('جاري الإرسال...', '');
   const submitBtn = document.getElementById('submitRowsBtn');
   if (submitBtn) submitBtn.disabled = true;
   try {
     const payload = {
       action: 'addTransfers', adminKey: adminKeyValue,
-      transfers: reviewRows.map(r => ({ date: r.date, name: r.name, type: r.type, amount: parseFloat(r.amount) || 0 })),
+      transfers: reviewRows.map(r => ({ date: r.date, name: r.name, type: r.type, amount: parseFloat(r.amount) || 0, accountLast4: r.accountLast4 || '' })),
       withdrawals: withdrawalRows.map(r => ({ date: r.date, opType: r.opType, details: r.details, amount: parseFloat(r.amount) || 0 }))
     };
     const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
