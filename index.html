@@ -11,7 +11,6 @@
 <link rel="icon" href="icon-192.png">
 
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
 <style>
 /* =========================================================================
@@ -935,11 +934,58 @@ loadData();
 
 <script>
 /* =========================================================================
-   لوحة التحكم (مشرف فقط): رفع كشف حساب PDF (الراجحي) وفرزه تلقائياً
-   ثم إرساله إلى تبويب "سجل_الحوالات" في ملف الإكسل عبر Google Apps Script.
-   (منطق العمل والمطابقة كما هو دون تغيير — التعديل هنا شكلي فقط.)
+   لوحة التحكم (مشرف فقط): رفع كشف حساب PDF (الراجحي) أو إيصال تحويل مفرد
+   (PDF أو صورة) وفرزه تلقائياً، ثم إرساله إلى تبويب "سجل_الحوالات" في ملف
+   الإكسل عبر Google Apps Script.
+   (منطق كشف الحساب والمطابقة كما هو دون أي تغيير — الإضافة الوحيدة هنا
+   مسار جديد موازٍ للإيصال المفرد + تحميل كسول للمكتبات، موثّقان أدناه.)
    ========================================================================= */
-if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+/* =========================================================================
+   تحميل كسول (lazy) للمكتبات الخارجية الثقيلة — pdf.js وTesseract.js.
+   لا تُحمَّل أي منهما تلقائيًا عند فتح الصفحة (بخلاف السابق حيث كان pdf.js
+   يتحمّل لكل زائر عادي عبر <script> ثابت في <head> رغم استخدامه حصريًا من
+   المشرف). كل دالة تُذكِّر Promise التحميل (memoized) فلا يُعاد التحميل أو
+   المحاولة أكثر من مرة واحدة طوال عمر الصفحة، وتُستدعى فقط لحظة أول استخدام
+   فعلي (فتح لوحة التحكم لـ pdf.js، رفع صورة/سكان فعليًا لـ Tesseract.js).
+   ========================================================================= */
+function loadScriptOnce_(url) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${url}"]`);
+    if (existing) {
+      if (existing.dataset.loaded === '1') resolve();
+      else existing.addEventListener('load', () => resolve());
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = url;
+    s.async = true;
+    s.onload = () => { s.dataset.loaded = '1'; resolve(); };
+    s.onerror = () => reject(new Error('تعذّر تحميل مكتبة خارجية: ' + url));
+    document.head.appendChild(s);
+  });
+}
+
+let _pdfJsLoadPromise = null;
+function ensurePdfJsLoaded_() {
+  if (window.pdfjsLib) return Promise.resolve();
+  if (!_pdfJsLoadPromise) {
+    _pdfJsLoadPromise = loadScriptOnce_('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js')
+      .then(() => {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      });
+  }
+  return _pdfJsLoadPromise;
+}
+
+let _tesseractLoadPromise = null;
+function ensureTesseractLoaded_() {
+  if (window.Tesseract) return Promise.resolve();
+  if (!_tesseractLoadPromise) {
+    _tesseractLoadPromise = loadScriptOnce_('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js');
+  }
+  return _tesseractLoadPromise;
+}
 
 const TRANSFER_TYPES = ["تحويل", "أمر مستديم"];
 
@@ -1197,9 +1243,9 @@ function openAdminPanel() {
 
         <div class="admin-section" data-section="upload">
           <div class="admin-field">
-            <label>ملف كشف الحساب (PDF)</label>
-            <input type="file" id="pdfFileInput" accept="application/pdf">
-            <div class="admin-note">تتم قراءة الملف والتعرف على الحوالات داخل المتصفح فقط، ولا يُرفع ملف الـ PDF نفسه إلى أي خادم.</div>
+            <label>ملف كشف حساب، إيصال تحويل مفرد (PDF)، أو صورة/سكان لإيصال</label>
+            <input type="file" id="pdfFileInput" accept="application/pdf,image/*">
+            <div class="admin-note">تتم قراءة الملف والتعرف على الحوالات داخل المتصفح فقط، ولا يُرفع الملف نفسه إلى أي خادم. الصور والإيصالات الممسوحة ضوئيًا تحتاج تحميل مكتبة تعرّف ضوئي إضافية عند أول استخدام فقط، وتظهر نتائجها بعلامة "تحقق يدويًا".</div>
           </div>
           <div class="admin-actions"><button class="admin-btn" id="parsePdfBtn">استخراج الحوالات من الملف</button></div>
           <div id="adminMsg"></div>
@@ -1598,7 +1644,204 @@ function wordsFromBandItems(bandItems, arabicLabelStopSet) {
 
 function classifyType(typeText) { return /مستديم/.test(typeText || '') ? 'أمر مستديم' : 'تحويل'; }
 
+// buildTextBands_ — يجمّع عناصر نص PDF.js (كل عنصر له x/y/text) في "أسطر"
+// مرئية (bands): كل عنصرين ارتفاعهما (y) متقاربان ضمن bandYTolerance يُعدّان
+// نفس السطر. مستخرجة من نفس الكود الذي كان مضمّنًا مباشرة داخل حلقة كشف
+// الحساب أدناه (بلا أي تغيير سلوكي) لإتاحة إعادة استخدامه في مسار "الإيصال
+// المفرد" الجديد أيضًا دون تكرار المنطق أو خطر اختلاف طفيف بين نسختين.
+function buildTextBands_(items, bandYTolerance) {
+  const sorted = [...items].sort((a, b) => b.y - a.y);
+  const bands = [];
+  let cur = [], lastY = null;
+  sorted.forEach(it => {
+    if (lastY === null || Math.abs(it.y - lastY) <= bandYTolerance) cur.push(it);
+    else { bands.push(cur); cur = [it]; }
+    lastY = it.y;
+  });
+  if (cur.length) bands.push(cur);
+  return bands;
+}
+
+/* =========================================================================
+   مسار "إيصال تحويل مفرد" (PDF أو صورة) — موازٍ تمامًا لمسار كشف الحساب
+   أعلاه، ولا يُستدعى إلا بعد التأكد أن الملف ليس كشف حساب (انظر نقطة
+   الفرع داخل extractTransactionsFromPdf). لا يمسّ أي من دوال/منطق كشف
+   الحساب القديم.
+
+   ⚠ اكتشاف حقيقي مهم أثناء بناء هذا المسار: بعض قوالب "إيصال تحويل" (على
+   الأقل قالب الراجحي الحالي) بها عطل ترميز خط عربي داخل طبقة نص الـ PDF
+   نفسها — حروف بلا نقاط (مثل "ٮ" بدل "ن"/"ب"/"ت") وأرقام/رموز دخيلة وسط
+   الكلمة (0 % + $) — يصيب تحديدًا اسم المُرسل، رغم أن باقي الحقول
+   (التاريخ، المبلغ، رقم الحساب المقنّع، اسم البنك) نصّها الإنجليزي/الرقمي
+   يبقى سليمًا تمامًا. هذا العطل موجود في الملف نفسه ولا يُصلحه أي معالجة
+   نصية (جُرِّب NFKC عبر fixBidi، يُصلح جزءًا فقط ويُبقي خللًا كافيًا لمنع
+   المطابقة). لذلك: نحاول أولاً القراءة من طبقة النص (رخيصة وفورية)، ونتحقق
+   من نتيجة اسم المُرسل تحديدًا عبر looksLikeGarbledArabic_؛ فإن بدت معطوبة
+   (أو لو الملف أصلاً صورة/سكان بلا طبقة نص) نلجأ لـ OCR (Tesseract) —
+   حصريًا لقراءة الاسم، مع إبقاء التاريخ/المبلغ من النص المباشر متى توفّرا
+   ووُثق بهما، تجنبًا لبطء/عدم دقة OCR على أرقام هي أصلاً موثوقة.
+   ========================================================================= */
+
+// عبارة إنجليزية ثابتة تظهر في قالب "إيصال تحويل" (عنوان الإيصال) ولا تظهر
+// إطلاقًا في "كشف حساب" — تبقى سليمة دائمًا حتى مع عطل ترميز الخط العربي
+// لأنها لاتينية. هذا هو معيار التفريق الوحيد بين المسارين.
+function isSingleReceiptText_(rawText) {
+  return /Transfer\s*Receipt/i.test(String(rawText || ''));
+}
+
+// نطاق Arabic Presentation Forms — بقاياها (لو ظهرت رغم NFKC) دليل قاطع على
+// عطل ترميز الخط. أرقام/رموز (%$+) ملتصقة بحرف عربي داخل ما يُفترض أنه اسم
+// بشري بحت هي الدليل الفعلي الذي لاحظناه في قالب الراجحي تحديدًا (انظر
+// الشرح أعلاه) — النطاق يبقى كتحقق إضافي احتياطي لبنوك أخرى مستقبلاً.
+const ARABIC_PRESENTATION_FORMS_RE = /[\uFB50-\uFDFF\uFE70-\uFEFF]/;
+function looksLikeGarbledArabic_(nameText) {
+  const s = String(nameText || '').trim();
+  if (!s) return true;
+  if (ARABIC_PRESENTATION_FORMS_RE.test(s)) return true;
+  const hasArabic = /[\u0600-\u06FF]/.test(s);
+  const hasLatin = /[A-Za-z]/.test(s);
+  if (!hasArabic && !hasLatin) return true;
+  if (hasArabic && /[0-9%$+]/.test(s)) return true;
+  return false;
+}
+
+// findReceiptNameBand_ — في قالب الراجحي الحالي، سطر اسم المُرسل يقع مباشرة
+// فوق سطر رقم الحساب المقنّع (SA** **** ... 1234) داخل مربّع "From". نرتكز
+// على نمط رقم الحساب المقنّع (مستقر وواضح) بدل الارتكاز على تسمية "من"
+// نفسها (قد تتغيّر مكانها بين قوالب)، ونرجع السطر الذي يسبقه مباشرة.
+const MASKED_ACCOUNT_RE = /(?:SA)?\*{2,}/;
+function findReceiptNameBand_(bands) {
+  for (let i = 1; i < bands.length; i++) {
+    const bandText = bands[i].map(it => it.text).join(' ');
+    if (MASKED_ACCOUNT_RE.test(bandText)) return bands[i - 1];
+  }
+  return null;
+}
+function findMaskedAccountLast4_(bands) {
+  for (const band of bands) {
+    const bandText = band.map(it => it.text).join(' ');
+    const m = bandText.match(/\*{2,}[\s*]*(\d{2,8})/);
+    if (m) return m[1].slice(-4);
+  }
+  return '';
+}
+function findFirstBandMatch_(bands, regex) {
+  for (const band of bands) {
+    const bandText = band.map(it => it.text).join(' ');
+    const m = bandText.match(regex);
+    if (m) return m;
+  }
+  return null;
+}
+
+// renderPdfPageToCanvas_ — يرسم صفحة PDF على canvas بدقة أعلى من العرض
+// الطبيعي (scale) لتحسين جودة قراءة Tesseract لاحقًا، سواء لصفحة PDF نصّها
+// معطوب أو بلا طبقة نص أصلًا (سكان).
+async function renderPdfPageToCanvas_(pdf, pageNum, scale) {
+  const page = await pdf.getPage(pageNum);
+  const viewport = page.getViewport({ scale: scale || 2.5 });
+  const canvas = document.createElement('canvas');
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+  const ctx = canvas.getContext('2d');
+  await page.render({ canvasContext: ctx, viewport }).promise;
+  return canvas;
+}
+
+// runOcrOnImageSource_ — نقطة الدخول الوحيدة لتشغيل Tesseract فعليًا (على
+// canvas مُصيَّر من PDF، أو data URL لصورة مرفوعة مباشرة). عربي+إنجليزي معًا
+// لأن حقول الإيصال مزيج من الاثنين.
+async function runOcrOnImageSource_(source) {
+  await ensureTesseractLoaded_();
+  const { data } = await Tesseract.recognize(source, 'ara+eng');
+  return data.text || '';
+}
+async function ocrPdfPageFromDoc_(pdf, pageNum) {
+  const canvas = await renderPdfPageToCanvas_(pdf, pageNum);
+  return runOcrOnImageSource_(canvas);
+}
+async function ocrImageFile_(file) {
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('تعذّرت قراءة ملف الصورة'));
+    reader.readAsDataURL(file);
+  });
+  return runOcrOnImageSource_(dataUrl);
+}
+
+// extractSingleReceiptFromOcrText_ — يبني نتيجة الإيصال من نص OCR خام (سطور
+// مفصولة بأسطر جديدة). Tesseract مع لغة 'ara' يُخرج العربي بترتيب منطقي
+// صحيح (لا يحتاج عكس كلمات كما في مسار طبقة نص PDF)، فنعتمد على السطر الذي
+// يسبق رقم الحساب المقنّع مباشرة كاسم المُرسل، بنفس منطق findReceiptNameBand_
+// لكن على أسطر نصية عادية بدل bands إحداثية.
+function extractSingleReceiptFromOcrText_(ocrText) {
+  const lines = String(ocrText || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  let nameLine = '';
+  let last4 = '';
+  for (let i = 1; i < lines.length; i++) {
+    if (MASKED_ACCOUNT_RE.test(lines[i])) {
+      nameLine = lines[i - 1];
+      const m = lines[i].match(/\*{2,}[\s*]*(\d{2,8})/);
+      if (m) last4 = m[1].slice(-4);
+      break;
+    }
+  }
+  const dateMatch = ocrText.match(/(\d{4}\/\d{2}\/\d{2})/);
+  const amountMatch = ocrText.match(/([\d,]+(?:\.\d{1,2})?)\s*(?:SAR|ريال)/i);
+  const arabicWords = (nameLine.match(/[\u0600-\u06FF]+/g) || []);
+  const latinWords = (nameLine.match(/[A-Za-z]+/g) || []).filter(w => w.length >= 3);
+  return buildSingleReceiptResult_({
+    date: dateMatch ? dateMatch[1] : '',
+    amount: amountMatch ? amountMatch[1].replace(/,/g, '') : '',
+    arabicWords, latinWords, detectedLast4: last4, viaOcr: true
+  });
+}
+
+// buildSingleReceiptResult_ — نقطة تجميع مشتركة بين مسار طبقة النص ومسار
+// OCR، تُخرج نفس الشكل بالضبط الذي يتوقعه handleParsePdf/renderReviewTable
+// (transfers/withdrawals)، بنفس منطق مطابقة الأعضاء المستخدم في مسار كشف
+// الحساب القديم (matchMemberWithLast4) دون أي تكرار له.
+function buildSingleReceiptResult_({ date, amount, arabicWords, latinWords, detectedLast4, viaOcr }) {
+  const matchResult = matchMemberWithLast4(arabicWords, latinWords, detectedLast4);
+  const matched = matchResult.name;
+  const wordsHint = arabicWords.join(' ') || latinWords.join(' ');
+  const ocrTag = viaOcr ? ' (استُخرج عبر تعرّف ضوئي (OCR) — تحقق يدويًا من الاسم والمبلغ قبل الإرسال)' : '';
+
+  let rawHint;
+  if (matched) {
+    rawHint = wordsHint + ocrTag;
+  } else if (matchResult.candidates.length > 0) {
+    const candidateLabels = matchResult.candidates.map(c => memberLabelWithLast4_(c)).join(' / ');
+    rawHint = 'تعارض بين: ' + candidateLabels +
+      (detectedLast4 ? ' — آخر 4 أرقام في الإيصال: ' + detectedLast4 : ' (لا يوجد رقم حساب واضح للمقارنة)') + ocrTag;
+  } else {
+    rawHint = (wordsHint || 'تعذّر التعرف على اسم واضح في الإيصال') + ocrTag;
+  }
+
+  const single = {
+    id: 'r' + (rowIdCounter++), date: date, name: matched || '', rawHint: rawHint,
+    type: 'تحويل', amount: amount, accountLast4: detectedLast4
+  };
+
+  lastExtractDebug = {
+    pages: 1, perPage: [], bankDetected: 'إيصال تحويل مفرد', bankAutoDetected: true,
+    singleReceipt: true, viaOcr: !!viaOcr
+  };
+
+  return { transfers: [single], withdrawals: [] };
+}
+
 async function extractTransactionsFromPdf(file) {
+  await ensurePdfJsLoaded_();
+
+  // === مسار الصور المباشرة (لقطة شاشة/صورة بالجوال لإيصال) — OCR دائمًا،
+  // لا طبقة نص أصلاً لملف صورة. ===
+  if (/^image\//.test(file.type)) {
+    const ocrText = await ocrImageFile_(file);
+    return extractSingleReceiptFromOcrText_(ocrText);
+  }
+
   const buf = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
 
@@ -1607,7 +1850,47 @@ async function extractTransactionsFromPdf(file) {
   // أي بنك جديد اتسجّل لاحقًا في BANK_PROFILES.
   const page1ForDetect = await pdf.getPage(1);
   const page1Content = await page1ForDetect.getTextContent();
-  const page1RawText = page1Content.items.map(it => fixBidi(it.str)).join(' ');
+  const page1Items = page1Content.items.map(it => ({ x: it.transform[4], y: it.transform[5], text: fixBidi(it.str).trim() })).filter(it => it.text);
+  const page1RawText = page1Items.map(it => it.text).join(' ');
+
+  // === مسار PDF بلا طبقة نص فعلية (سكان لإيصال) — نص فارغ تقريبًا يعني لا
+  // فائدة من محاولة قراءة نصية، مباشرة OCR على الصفحة الأولى مُصيَّرة صورة. ===
+  const hasUsableTextLayer = page1RawText.replace(/\s+/g, '').length >= 15;
+  if (!hasUsableTextLayer) {
+    const ocrText = await ocrPdfPageFromDoc_(pdf, 1);
+    return extractSingleReceiptFromOcrText_(ocrText);
+  }
+
+  // === مسار "إيصال تحويل مفرد" (PDF بطبقة نص، سواء سليمة أو معطوبة جزئيًا) ===
+  if (isSingleReceiptText_(page1RawText)) {
+    const page1BandYTolerance = (BANK_PROFILES.alrajhi.bandYTolerance || DEFAULT_BAND_Y_TOLERANCE);
+    const page1Bands = buildTextBands_(page1Items, page1BandYTolerance);
+    const nameBand = findReceiptNameBand_(page1Bands);
+    const { arabicWords, latinWords } = nameBand ? wordsFromBandItems(nameBand, new Set()) : { arabicWords: [], latinWords: [] };
+    const nameFromText = arabicWords.join(' ') || latinWords.join(' ');
+
+    if (!looksLikeGarbledArabic_(nameFromText)) {
+      // طبقة النص سليمة (بنك/قالب مختلف مستقبلاً لا يعاني عطل الترميز
+      // الموثّق أعلاه) — نستخدمها مباشرة، أسرع وأدق من OCR.
+      const detectedLast4 = findMaskedAccountLast4_(page1Bands);
+      const dateMatch = findFirstBandMatch_(page1Bands, /(\d{4}\/\d{2}\/\d{2})/);
+      const amountMatch = findFirstBandMatch_(page1Bands, /([\d,]+(?:\.\d{1,2})?)\s*(?:SAR|ريال)/i);
+      return buildSingleReceiptResult_({
+        date: dateMatch ? dateMatch[1] : '',
+        amount: amountMatch ? amountMatch[1].replace(/,/g, '') : '',
+        arabicWords, latinWords, detectedLast4, viaOcr: false
+      });
+    }
+
+    // اسم المُرسل معطوب في طبقة النص (الحالة الموثّقة حاليًا لقالب الراجحي) —
+    // OCR هو المصدر الموثوق الوحيد للاسم هنا.
+    const ocrText = await ocrPdfPageFromDoc_(pdf, 1);
+    return extractSingleReceiptFromOcrText_(ocrText);
+  }
+
+  // === من هنا فصاعدًا: منطق كشف الحساب القديم بالكامل، بلا أي تغيير سلوكي
+  // (فقط استبدال بناء "bands" المضمّن سابقًا باستدعاء buildTextBands_
+  // المستخرج أعلاه — نفس الكود تمامًا كدالة مشتركة). ===
   const detection = detectBankProfile(page1RawText);
   const profile = detection.profile;
   const dateRegex = profile.dateRegex || DEFAULT_DATE_REGEX;
@@ -1623,15 +1906,7 @@ async function extractTransactionsFromPdf(file) {
     const content = await page.getTextContent();
     const rawCount = content.items.length;
     const items = content.items.map(it => ({ x: it.transform[4], y: it.transform[5], text: fixBidi(it.str).trim() })).filter(it => it.text);
-    items.sort((a, b) => b.y - a.y);
-    const bands = [];
-    let cur = [], lastY = null;
-    items.forEach(it => {
-      if (lastY === null || Math.abs(it.y - lastY) <= bandYTolerance) cur.push(it);
-      else { bands.push(cur); cur = [it]; }
-      lastY = it.y;
-    });
-    if (cur.length) bands.push(cur);
+    const bands = buildTextBands_(items, bandYTolerance);
     const pageDebug = { page: p, rawItems: rawCount, keptItems: items.length, bands: bands.length, calibrated: false, anchorsOnPage: 0, sampleItems: items.slice(0, 15).map(i => i.text) };
     debug.perPage.push(pageDebug);
     if (!bands.length) continue;
