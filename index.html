@@ -1140,6 +1140,14 @@ function matchMember(arabicWords, latinWords) { return matchMemberArabic(arabicW
 // لكل عضو (MEMBER_LAST4). لو ما فيش تعارض أصلًا أو ما قدرش يحل التعارض،
 // يرجع بالسلوك القديم بالضبط (matchMember العادي). لا يستخدم آخر 4 أرقام
 // إطلاقًا لو الاسم أصلًا اتطابق بثقة على عضو واحد فقط.
+//
+// ⚠ حالة إضافية (موثّقة 2026/09): لو arabicWords فارغة تمامًا من البداية
+// (اسم معطوب في طبقة نص PDF قالب الراجحي، أو OCR فشل في قراءة الاسم لكن
+// نجح في قراءة الرقم) — detectedLast4 وحده قد يكون كافيًا وموثوقًا 100%
+// للمطابقة، خصوصًا حين يأتي من طبقة نص PDF (الأرقام عادة لا تتأثر بعطل
+// ترميز الخط العربي الذي يصيب الحروف فقط). قبل هذا الإصلاح كانت هذه
+// الحالة تُهدر القيمة الموثوقة وتُرجع "تعذّر التعرف" رغم توفر بيانات كافية
+// لمطابقة مؤكدة بيقين تام (لا تخمين — تطابق رقمي حصري مع عضو واحد فقط).
 function matchMemberWithLast4(arabicWords, latinWords, detectedLast4) {
   const arabicResult = matchMemberArabicWithCandidates(arabicWords);
   if (arabicResult.name) return { name: arabicResult.name, candidates: [] };
@@ -1151,7 +1159,17 @@ function matchMemberWithLast4(arabicWords, latinWords, detectedLast4) {
     return { name: null, candidates: arabicResult.candidates };
   }
   const latinName = matchMemberLatin(latinWords);
-  return { name: latinName || null, candidates: [] };
+  if (latinName) return { name: latinName, candidates: [] };
+
+  // مسار جديد: لا كلمات عربية ولا إنجليزية مطابقة إطلاقًا — آخر محاولة قبل
+  // الاستسلام: هل detectedLast4 يطابق عضوًا واحدًا فقط من كل الأعضاء
+  // (بصرف النظر التام عن أي كلمات اسم)؟
+  if (detectedLast4) {
+    const byLast4Only = MEMBERS.filter(m => MEMBER_LAST4[m] === detectedLast4);
+    if (byLast4Only.length === 1) return { name: byLast4Only[0], candidates: [] };
+    if (byLast4Only.length > 1) return { name: null, candidates: byLast4Only };
+  }
+  return { name: null, candidates: [] };
 }
 
 // ملاحظة: استخراج آخر 4 أرقام الحساب بقى جزء من بروفايل البنك (انظر
@@ -1709,7 +1727,12 @@ function looksLikeGarbledArabic_(nameText) {
 // فوق سطر رقم الحساب المقنّع (SA** **** ... 1234) داخل مربّع "From". نرتكز
 // على نمط رقم الحساب المقنّع (مستقر وواضح) بدل الارتكاز على تسمية "من"
 // نفسها (قد تتغيّر مكانها بين قوالب)، ونرجع السطر الذي يسبقه مباشرة.
-const MASKED_ACCOUNT_RE = /(?:SA)?\*{2,}/;
+//
+// النمط يقبل عدة رموز إخفاء بديلة (نقاط •، X/x، شرطات -) بجانب النجمة —
+// موثّق 2026/09: Tesseract (OCR) يخطئ كثيرًا في قراءة رمز النجمة الصغير من
+// صور/مسحات الإيصالات (يُقرأ أحيانًا كنقطة أو يُفقد تمامًا)، فتقييد النمط
+// على "*" فقط سبق أن أفشل التعرف بالكامل رغم أن رقم الحساب واضح بصريًا.
+const MASKED_ACCOUNT_RE = /(?:SA)?[\*•xX\-]{2,}/;
 function findReceiptNameBand_(bands) {
   for (let i = 1; i < bands.length; i++) {
     const bandText = bands[i].map(it => it.text).join(' ');
@@ -1720,8 +1743,11 @@ function findReceiptNameBand_(bands) {
 function findMaskedAccountLast4_(bands) {
   for (const band of bands) {
     const bandText = band.map(it => it.text).join(' ');
-    const m = bandText.match(/\*{2,}[\s*]*(\d{2,8})/);
-    if (m) return m[1].slice(-4);
+    if (!MASKED_ACCOUNT_RE.test(bandText)) continue;
+    // آخر مجموعة أرقام في السطر — نفس منطق extractSingleReceiptFromOcrText_
+    // أعلاه، بمعزل عن رمز الإخفاء المستخدَم قبلها بالضبط.
+    const allDigitGroups = bandText.match(/\d{2,8}/g);
+    if (allDigitGroups && allDigitGroups.length) return allDigitGroups[allDigitGroups.length - 1].slice(-4);
   }
   return '';
 }
@@ -1782,15 +1808,44 @@ function extractSingleReceiptFromOcrText_(ocrText) {
   for (let i = 1; i < lines.length; i++) {
     if (MASKED_ACCOUNT_RE.test(lines[i])) {
       nameLine = lines[i - 1];
-      const m = lines[i].match(/\*{2,}[\s*]*(\d{2,8})/);
-      if (m) last4 = m[1].slice(-4);
+      // آخر مجموعة أرقام في السطر هي رقم الحساب الظاهر دائمًا (بصرف النظر
+      // عن رمز الإخفاء المستخدَم قبله) — أكثر مرونة من الاشتراط بأنها تلي
+      // رمزًا محددًا مباشرة، ويتماشى مع توسيع MASKED_ACCOUNT_RE أعلاه.
+      const allDigitGroups = lines[i].match(/\d{2,8}/g);
+      if (allDigitGroups && allDigitGroups.length) {
+        last4 = allDigitGroups[allDigitGroups.length - 1].slice(-4);
+      }
       break;
     }
   }
   const dateMatch = ocrText.match(/(\d{4}\/\d{2}\/\d{2})/);
   const amountMatch = ocrText.match(/([\d,]+(?:\.\d{1,2})?)\s*(?:SAR|ريال)/i);
-  const arabicWords = (nameLine.match(/[\u0600-\u06FF]+/g) || []);
-  const latinWords = (nameLine.match(/[A-Za-z]+/g) || []).filter(w => w.length >= 3);
+  let arabicWords = (nameLine.match(/[\u0600-\u06FF]+/g) || []);
+  let latinWords = (nameLine.match(/[A-Za-z]+/g) || []).filter(w => w.length >= 3);
+
+  // مسار احتياطي شامل: لو لم يُعثر على سطر رقم الحساب المقنَّع إطلاقًا
+  // (nameLine ما زالت فارغة) — لا نستسلم فورًا بـ"تعذّر التعرف". بدلًا من
+  // الارتكاز على سطر واحد بعينه، نبحث في *كل* كلمات النص المستخرَج ككل عن
+  // أي اسم عضو معروف بالكامل (مطابقة تامة لاسم عضو كامل، وليس كلمة مفردة
+  // قد تتكرر بين عدة أعضاء) — احتياطي أضعف من المسار الأساسي (لذا يُستخدَم
+  // فقط عند فشله التام)، لكنه أفضل من عدم المحاولة إطلاقًا لخطورة محدودة
+  // كهذه (إيصال واحد يراجعه المشرف يدويًا قبل الإرسال دائمًا).
+  if (!nameLine) {
+    const allArabicWords = (ocrText.match(/[\u0600-\u06FF]+/g) || []);
+    const wholeTextJoined = normArabic(allArabicWords.join(''));
+    const fullNameCandidates = MEMBERS.filter(m => wholeTextJoined.indexOf(normArabic(m)) !== -1);
+    if (fullNameCandidates.length === 1) {
+      arabicWords = [fullNameCandidates[0]]; // اسم كامل جاهز، matchMemberArabicWithCandidates يتعامل معه كسطر واحد
+    } else if (fullNameCandidates.length === 0) {
+      // ولا حتى مطابقة اسم كامل — كخيار أخير، مرّر كل الكلمات العربية
+      // كما هي لعل detectedLast4 (لو وُجد بمعزل عن هذا المسار) يكفي وحده،
+      // أو على الأقل تظهر كتلميح نصي خام للمشرف بدل رسالة فارغة تمامًا.
+      arabicWords = allArabicWords;
+    }
+    // fullNameCandidates.length > 1: تعارض حقيقي، نترك arabicWords فارغة
+    // عمدًا كي تصل لـ"تعارض" أو "تعذّر" بدل تخمين خاطئ بين عدة أعضاء.
+  }
+
   return buildSingleReceiptResult_({
     date: dateMatch ? dateMatch[1] : '',
     amount: amountMatch ? amountMatch[1].replace(/,/g, '') : '',
