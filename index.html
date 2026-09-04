@@ -40,17 +40,17 @@
   --border-strong: rgba(217,179,106,0.30);
   --text-1: #f4f2ea;
   --text-2: rgba(244,242,234,0.64);
-  --text-3: rgba(244,242,234,0.52);
-  --brand: #c99a4a;
-  --brand-dim: rgba(201,154,74,0.14);
+  --text-3: rgba(244,242,234,0.40);
+  --brand: #22e0ac;
+  --brand-dim: rgba(34,224,172,0.14);
   --gold: #ddb772;
   --gold-dim: rgba(221,183,114,0.16);
   --ok: #3ecf7d;
   --ok-dim: rgba(62,207,125,0.16);
-  --late: #f0453f;
-  --late-dim: rgba(240,69,63,0.16);
-  --pending: #f2903f;
-  --pending-dim: rgba(242,144,63,0.16);
+  --late: #ff7a68;
+  --late-dim: rgba(255,122,104,0.16);
+  --pending: #eeae4b;
+  --pending-dim: rgba(238,174,75,0.16);
   --new-member: #6bb6ff;
   --new-member-dim: rgba(107,182,255,0.16);
   --shadow-card: 0 20px 50px rgba(0,0,0,0.35);
@@ -67,17 +67,17 @@
   --border-strong: rgba(20,32,27,0.16);
   --text-1: #12211c;
   --text-2: rgba(18,33,28,0.64);
-  --text-3: rgba(18,33,28,0.50);
-  --brand: #8a6220;
-  --brand-dim: rgba(138,98,32,0.10);
+  --text-3: rgba(18,33,28,0.42);
+  --brand: #0c9a76;
+  --brand-dim: rgba(12,154,118,0.10);
   --gold: #a97e35;
   --gold-dim: rgba(169,126,53,0.12);
   --ok: #1f9d4f;
   --ok-dim: rgba(31,157,79,0.10);
-  --late: #c62e26;
-  --late-dim: rgba(198,46,38,0.10);
-  --pending: #c2701a;
-  --pending-dim: rgba(194,112,26,0.10);
+  --late: #d9483a;
+  --late-dim: rgba(217,72,58,0.10);
+  --pending: #b9791e;
+  --pending-dim: rgba(185,121,30,0.10);
   --new-member: #1a73c4;
   --new-member-dim: rgba(26,115,196,0.10);
   --shadow-card: 0 16px 40px rgba(18,33,28,0.10);
@@ -414,9 +414,10 @@ section { margin-top: var(--sp-7); scroll-margin-top: var(--sp-5); }
   width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border);
   font-family: inherit; font-size: 15px; background: var(--surface-2); color: var(--text-1);
 }
-.admin-btn { background: var(--brand); color: #06140f; border: none; padding: 12px 22px; border-radius: 10px; font-weight: 800; font-size: 15px; cursor: pointer; font-family: inherit; }
+.admin-btn { background: transparent; color: var(--gold); border: 1px solid var(--border-strong); padding: 13px 18px; border-radius: var(--r-md); font-weight: 800; font-size: 15px; cursor: pointer; font-family: inherit; transition: background .2s ease, transform .2s var(--ease-spring); }
+.admin-btn:hover { background: var(--gold-dim); transform: translateY(-1px); }
 .admin-btn.secondary { background: transparent; color: var(--text-1); border: 1px solid var(--border-strong); }
-.admin-btn.danger { background: var(--late); color: #fff; }
+.admin-btn.danger { background: var(--late); color: #fff; border: none; }
 .admin-btn:disabled { opacity: .5; cursor: not-allowed; }
 .admin-msg { margin-top: 12px; font-weight: 700; font-size: 14px; }
 .admin-msg.error { color: var(--late); }
