@@ -559,8 +559,17 @@ initTheme();
 
 /* =========================================================================
    FAMILY_CONFIG — الإعدادات الوحيدة الخاصة بهذه العائلة على مستوى الموقع.
+
+   ⚠ 2026/09 — تحويل لنموذج "قالب واحد قابل لإعادة الاستخدام لعدة عائلات":
+   القيم أدناه تبقى **افتراضية احتياطية** (تُبقي هذا الموقع بالذات يعمل تمامًا
+   كما هو، بلا أي تعطيل، لأن apiUrl هنا مملوء فعليًا). لكن أي عائلة جديدة
+   تفتح نسخة من هذا الملف بلا إعدادات محفوظة (localStorage فارغ) و apiUrl
+   الافتراضي فارغ (القالب المُوزَّع الفارغ) — ستظهر لها شاشة إعداد أولي
+   بسيطة تُنشئ إعداداتها الخاصة وتُخزّنها محليًا في متصفحها، بدل الحاجة
+   لتعديل الكود المصدري وتوزيع نسخة HTML منفصلة يدويًا لكل عائلة (عبء
+   صيانة كابوسي عند أي تحديث كود مستقبلي — نسخة واحدة مشتركة أفضل بكثير).
    ========================================================================= */
-const FAMILY_CONFIG = {
+const DEFAULT_FAMILY_CONFIG = {
   fundName: "صندوق صلة وإحسان العائلي",
   fundTagline: "تكافل .. عطاء .. استدامة",
   apiUrl: "https://script.google.com/macros/s/AKfycbzXfcGvNVt4cJy5svPGxugGD8YGv_OyEeCE-Ee9-E34FEXDX30vfZP4tBwBruNG-DXIvg/exec",
@@ -572,7 +581,20 @@ const FAMILY_CONFIG = {
     iban: "SA9680000680608010992235"
   }
 };
-const API_URL = FAMILY_CONFIG.apiUrl;
+const FAMILY_CONFIG_STORAGE_KEY = 'familyFundConfig_v1';
+
+function loadStoredFamilyConfig_() {
+  try {
+    const raw = localStorage.getItem(FAMILY_CONFIG_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+// الإعدادات الفعلية المستخدَمة الآن — تُدمَج (مُخزَّن محليًا فوق الافتراضي)
+// عند التحميل، وتُعاد كتابتها بالكامل بعد إتمام شاشة الإعداد الأولي لأي
+// عائلة جديدة (انظر ensureFamilyConfigured_ أدناه).
+let FAMILY_CONFIG = Object.assign({}, DEFAULT_FAMILY_CONFIG, loadStoredFamilyConfig_() || {});
+let API_URL = FAMILY_CONFIG.apiUrl;
 
 let allMembersData = [];
 
@@ -680,6 +702,20 @@ function renderApp(d) {
   MEMBER_ENGLISH = d.members.filter(m => m.englishName).map(m => ({ name: m.name, words: m.englishName.toUpperCase().split(/\s+/).filter(Boolean) }));
   MEMBER_LAST4 = {};
   d.members.forEach(m => { if (m.accountLast4) MEMBER_LAST4[m.name] = m.accountLast4; });
+
+  // شارة صغيرة على الزر العائم لو وُجدت رسائل SMS بانتظار تحديد العضو —
+  // تنبيه فوري مرئي دون الحاجة لفتح لوحة التحكم للتأكد.
+  const fabBtn = document.getElementById('adminTriggerBtn');
+  const existingBadge = fabBtn.querySelector('.fab-badge');
+  if (existingBadge) existingBadge.remove();
+  if (Array.isArray(d.smsQueuePending) && d.smsQueuePending.length > 0) {
+    const badge = document.createElement('span');
+    badge.className = 'fab-badge';
+    badge.textContent = d.smsQueuePending.length;
+    badge.style.cssText = 'position:absolute;top:-4px;left:-4px;background:var(--late);color:#fff;border-radius:50%;min-width:18px;height:18px;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:800;';
+    fabBtn.style.position = 'relative';
+    fabBtn.appendChild(badge);
+  }
 
   const lateListHtml = d.lateMembers.length === 0
     ? `<div class="empty-late reveal">${ICONS.checkCircle}<span>جميع الأعضاء منتظمون في السداد لهذا الشهر.</span></div>`
@@ -929,8 +965,69 @@ function initInfoTooltip() {
   overlay.addEventListener('click', close);
 }
 
-applyBranding();
-loadData();
+/**
+ * ensureFamilyConfigured_ — يفحص هل توجد إعدادات صالحة (apiUrl غير فارغ)
+ * قبل أي محاولة اتصال بالموقع. لو نعم (الحالة الحالية لهذا الموقع، أو أي
+ * عائلة أكملت الإعداد سابقًا)، يُكمل التحميل الطبيعي فورًا دون أي تأخير أو
+ * تغيير محسوس. لو لا (نسخة قالب فارغة موزَّعة لعائلة جديدة لم تُعدّها
+ * بعد)، يعرض نموذج إعداد بسيط بدل شاشة تحميل فارغة أو خطأ غير مفهوم.
+ */
+function ensureFamilyConfigured_() {
+  if (FAMILY_CONFIG.apiUrl && FAMILY_CONFIG.apiUrl.trim()) return true;
+  renderSetupScreen_();
+  return false;
+}
+
+function renderSetupScreen_() {
+  const c = document.getElementById('appContainer');
+  c.innerHTML = `
+    <div style="max-width:480px;margin:40px auto;padding:24px;" dir="rtl">
+      <h2 style="margin-bottom:4px;">مرحبًا بك 👋</h2>
+      <p class="muted" style="margin-bottom:20px;">إعداد أولي لمرة واحدة فقط — يُحفظ في هذا المتصفح تلقائيًا.</p>
+      <form id="setupForm">
+        <label>اسم الصندوق</label>
+        <input id="setupFundName" required placeholder="مثال: صندوق عائلة الفلاني" style="width:100%;margin-bottom:12px;padding:10px;border-radius:8px;">
+        <label>شعار فرعي (اختياري)</label>
+        <input id="setupTagline" placeholder="مثال: تكافل .. عطاء .. استدامة" style="width:100%;margin-bottom:12px;padding:10px;border-radius:8px;">
+        <label>رابط نشر السكربت (Web App URL)</label>
+        <input id="setupApiUrl" required placeholder="https://script.google.com/macros/s/.../exec" style="width:100%;margin-bottom:12px;padding:10px;border-radius:8px;">
+        <label>اسم البنك</label>
+        <input id="setupBankName" placeholder="مثال: مصرف الراجحي" style="width:100%;margin-bottom:12px;padding:10px;border-radius:8px;">
+        <label>رقم الحساب</label>
+        <input id="setupAccountNumber" style="width:100%;margin-bottom:12px;padding:10px;border-radius:8px;">
+        <label>الآيبان (IBAN)</label>
+        <input id="setupIban" style="width:100%;margin-bottom:20px;padding:10px;border-radius:8px;">
+        <button type="submit" class="admin-btn" style="width:100%;">حفظ والمتابعة</button>
+      </form>
+    </div>
+  `;
+  document.getElementById('setupForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const newConfig = {
+      fundName: document.getElementById('setupFundName').value.trim() || DEFAULT_FAMILY_CONFIG.fundName,
+      fundTagline: document.getElementById('setupTagline').value.trim(),
+      apiUrl: document.getElementById('setupApiUrl').value.trim(),
+      bankProfile: 'alrajhi',
+      bankAccount: {
+        fundName: document.getElementById('setupFundName').value.trim(),
+        bankName: document.getElementById('setupBankName').value.trim(),
+        accountNumber: document.getElementById('setupAccountNumber').value.trim(),
+        iban: document.getElementById('setupIban').value.trim()
+      }
+    };
+    if (!newConfig.apiUrl) { alert('رابط نشر السكربت إلزامي'); return; }
+    localStorage.setItem(FAMILY_CONFIG_STORAGE_KEY, JSON.stringify(newConfig));
+    FAMILY_CONFIG = Object.assign({}, DEFAULT_FAMILY_CONFIG, newConfig);
+    API_URL = FAMILY_CONFIG.apiUrl;
+    applyBranding();
+    loadData();
+  });
+}
+
+if (ensureFamilyConfigured_()) {
+  applyBranding();
+  loadData();
+}
 </script>
 
 <script>
@@ -1246,11 +1343,51 @@ const ADMIN_ACTIONS = [
 function openAdminPanel() {
   const mount = document.getElementById('adminMount');
   const memberOptions = `<option value="">— اختر عضوًا —</option>${MEMBERS.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(memberLabelWithLast4_(n))}</option>`).join('')}`;
+
+  // قسم قائمة انتظار SMS — يظهر فقط عند وجود عناصر فعلية بانتظار تحديد
+  // العضو (رسائل إيداع لم تُطابَق تلقائيًا). كل صف يحمل اختيار عضو + زر
+  // تأكيد مستقل، بنفس قائمة الأعضاء المستخدَمة في بقية لوحة التحكم.
+  const smsQueue = (lastLoadedData && Array.isArray(lastLoadedData.smsQueuePending)) ? lastLoadedData.smsQueuePending : [];
+  const smsQueueHtml = smsQueue.length === 0 ? '' : `
+    <div class="admin-field sms-queue-section">
+      <label>🔔 ${smsQueue.length} ${smsQueue.length === 1 ? 'رسالة' : 'رسائل'} بانتظار تحديد العضو</label>
+      ${smsQueue.map(item => `
+        <div class="sms-queue-item" data-queue-id="${escapeHtml(item.id)}" style="border:1px solid var(--border-strong);border-radius:var(--r-md);padding:10px;margin-bottom:8px;">
+          <div style="margin-bottom:6px;font-size:14px;"><strong>${escapeHtml(item.rawName)}</strong> — ${escapeHtml(String(item.amount))} ريال — ${escapeHtml(item.date)}</div>
+          <select class="sms-queue-member-select">${memberOptions}</select>
+          <button type="button" class="admin-btn sms-queue-confirm-btn" style="margin-top:6px;width:100%;">تأكيد ✔</button>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  // حالة جهاز بوابة SMS (بطارية + آخر ظهور) — سطر معلوماتي بسيط، يظهر
+  // فقط لو وصلت بيانات فعلية من reportDeviceStatus ولو مرة واحدة.
+  const ds = lastLoadedData && lastLoadedData.deviceStatus;
+  let deviceStatusHtml = '';
+  if (ds && typeof ds.batteryLevel === 'number') {
+    const batteryColor = ds.batteryLevel > 50 ? 'var(--ok)' : ds.batteryLevel > 20 ? 'var(--pending)' : 'var(--late)';
+    let lastSeenLabel = 'غير معروف';
+    if (ds.lastSeen) {
+      const diffMs = Date.now() - new Date(ds.lastSeen).getTime();
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      lastSeenLabel = diffHours < 1 ? 'قبل أقل من ساعة' : diffHours < 24 ? `قبل ${diffHours} ساعة` : `قبل ${Math.floor(diffHours / 24)} يوم`;
+    }
+    deviceStatusHtml = `
+      <div class="admin-field" style="display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--text-2);">
+        <span>🔋 جهاز بوابة SMS: <strong style="color:${batteryColor};">${ds.batteryLevel}%</strong></span>
+        <span>آخر ظهور: ${lastSeenLabel}</span>
+      </div>
+    `;
+  }
+
   mount.innerHTML = `
     <div class="admin-overlay" id="adminOverlay">
       <div class="admin-modal">
         <button class="admin-close" id="adminCloseBtn" aria-label="إغلاق">${ICONS.close}</button>
         <h3>لوحة التحكم</h3>
+        ${smsQueueHtml}
+        ${deviceStatusHtml}
         <div class="admin-field"><label>مفتاح المشرف (Admin Key)</label><input type="password" id="adminKeyInput" placeholder="أدخل المفتاح السري" autocomplete="off"></div>
 
         <div class="admin-field">
@@ -1350,6 +1487,43 @@ function openAdminPanel() {
     </div>
   `;
   bindOverlayClose('adminOverlay', 'adminCloseBtn', closeAdminPanel);
+
+  // ربط أزرار "تأكيد" في قائمة انتظار SMS — كل زر مستقل عن الآخر، يحتاج
+  // اختيار عضو من القائمة المنسدلة بجانبه أولًا، ويستخدم مفتاح المشرف
+  // نفسه المُدخَل بالأعلى (لا حقل مفتاح منفصل لكل عنصر).
+  document.querySelectorAll('.sms-queue-confirm-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const itemEl = btn.closest('.sms-queue-item');
+      const queueId = itemEl.getAttribute('data-queue-id');
+      const memberSelect = itemEl.querySelector('.sms-queue-member-select');
+      const memberName = memberSelect.value;
+      if (!memberName) { alert('الرجاء اختيار العضو أولًا'); return; }
+      if (!adminKeyValue) { alert('الرجاء إدخال مفتاح المشرف أولًا'); return; }
+      btn.disabled = true;
+      btn.textContent = 'جاري التأكيد...';
+      try {
+        const res = await fetch(API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'resolveSmsQueueItem', adminKey: adminKeyValue, queueId, memberName })
+        });
+        const data = await res.json();
+        if (data.success) {
+          itemEl.style.opacity = '0.5';
+          itemEl.innerHTML = '<div style="text-align:center;padding:8px;">✔ تم التأكيد والإدراج</div>';
+          loadData();
+        } else {
+          alert('تعذّر التأكيد: ' + (data.error || 'خطأ غير معروف'));
+          btn.disabled = false;
+          btn.textContent = 'تأكيد ✔';
+        }
+      } catch (err) {
+        alert('تعذّر الاتصال بالموقع');
+        btn.disabled = false;
+        btn.textContent = 'تأكيد ✔';
+      }
+    });
+  });
+
   document.getElementById('adminKeyInput').addEventListener('input', (e) => {
     adminKeyValue = e.target.value;
     // أي تغيير في المفتاح المكتوب يُلغي التخزين المؤقت فورًا — نتيجة تحقق
