@@ -637,6 +637,7 @@ async function loadData() {
     const data = await response.json();
     if (data.error) { showErrorState(data.error); return; }
     renderApp(data);
+    if (adminDataLoaded && adminKeyValue) loadAdminData_(); // تحديث صامت لبيانات المشرف بعد أي تعديل
   } catch (e) {
     showErrorState('تحقق من اتصالك بالإنترنت ثم أعد المحاولة.');
   }
@@ -699,19 +700,17 @@ function renderApp(d) {
   lastLoadedData = d;
   allMembersData = d.members;
   MEMBERS = d.members.map(m => m.name);
-  MEMBER_ENGLISH = d.members.filter(m => m.englishName).map(m => ({ name: m.name, words: m.englishName.toUpperCase().split(/\s+/).filter(Boolean) }));
-  MEMBER_LAST4 = {};
-  d.members.forEach(m => { if (m.accountLast4) MEMBER_LAST4[m.name] = m.accountLast4; });
+  // (الاسم الإنجليزي وآخر 4 أرقام لم تعد في الرد العام — تُحمَّل من بيانات المشرف بعد إدخال المفتاح: loadAdminData_)
 
   // شارة صغيرة على الزر العائم لو وُجدت رسائل SMS بانتظار تحديد العضو —
   // تنبيه فوري مرئي دون الحاجة لفتح لوحة التحكم للتأكد.
   const fabBtn = document.getElementById('adminTriggerBtn');
   const existingBadge = fabBtn.querySelector('.fab-badge');
   if (existingBadge) existingBadge.remove();
-  if (Array.isArray(d.smsQueuePending) && d.smsQueuePending.length > 0) {
+  if (Number(d.smsQueueCount) > 0) {
     const badge = document.createElement('span');
     badge.className = 'fab-badge';
-    badge.textContent = d.smsQueuePending.length;
+    badge.textContent = d.smsQueueCount;
     badge.style.cssText = 'position:absolute;top:-4px;left:-4px;background:var(--late);color:#fff;border-radius:50%;min-width:18px;height:18px;font-size:11px;display:flex;align-items:center;justify-content:center;font-weight:800;';
     fabBtn.style.position = 'relative';
     fabBtn.appendChild(badge);
@@ -1275,6 +1274,12 @@ function matchMemberWithLast4(arabicWords, latinWords, detectedLast4) {
 // عشان أي بروفايل بنك جديد يقدر يوفّر نمط استخراج خاص بيه أو يعطّلها.
 
 let adminKeyValue = "";
+// بيانات المشرف (لا تأتي مع الرد العام): الاسم الإنجليزي وآخر 4 أرقام، قائمة الانتظار،
+// حالة الجهاز، تاريخ المراجعة، مبلغ الاشتراك. تبقى في ذاكرة الصفحة فقط ولا تُحفظ في
+// المتصفح، وتُمسح عند إغلاق لوحة التحكم.
+let adminData = { memberDetails: [], smsQueuePending: [], deviceStatus: null, reviewDate: '', subscriptionAmount: 0 };
+let adminDataLoaded = false;
+let adminDataPromise_ = null;
 let reviewRows = [];
 let rowIdCounter = 0;
 
@@ -1344,51 +1349,15 @@ function openAdminPanel() {
   const mount = document.getElementById('adminMount');
   const memberOptions = `<option value="">— اختر عضوًا —</option>${MEMBERS.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(memberLabelWithLast4_(n))}</option>`).join('')}`;
 
-  // قسم قائمة انتظار SMS — يظهر فقط عند وجود عناصر فعلية بانتظار تحديد
-  // العضو (رسائل إيداع لم تُطابَق تلقائيًا). كل صف يحمل اختيار عضو + زر
-  // تأكيد مستقل، بنفس قائمة الأعضاء المستخدَمة في بقية لوحة التحكم.
-  const smsQueue = (lastLoadedData && Array.isArray(lastLoadedData.smsQueuePending)) ? lastLoadedData.smsQueuePending : [];
-  const smsQueueHtml = smsQueue.length === 0 ? '' : `
-    <div class="admin-field sms-queue-section">
-      <label>🔔 ${smsQueue.length} ${smsQueue.length === 1 ? 'رسالة' : 'رسائل'} بانتظار تحديد العضو</label>
-      ${smsQueue.map(item => `
-        <div class="sms-queue-item" data-queue-id="${escapeHtml(item.id)}" style="border:1px solid var(--border-strong);border-radius:var(--r-md);padding:10px;margin-bottom:8px;">
-          <div style="margin-bottom:6px;font-size:14px;"><strong>${escapeHtml(item.rawName)}</strong> — ${escapeHtml(String(item.amount))} ريال — ${escapeHtml(item.date)}</div>
-          <select class="sms-queue-member-select">${memberOptions}</select>
-          <button type="button" class="admin-btn sms-queue-confirm-btn" style="margin-top:6px;width:100%;">تأكيد ✔</button>
-        </div>
-      `).join('')}
-    </div>
-  `;
-
-  // حالة جهاز بوابة SMS (بطارية + آخر ظهور) — سطر معلوماتي بسيط، يظهر
-  // فقط لو وصلت بيانات فعلية من reportDeviceStatus ولو مرة واحدة.
-  const ds = lastLoadedData && lastLoadedData.deviceStatus;
-  let deviceStatusHtml = '';
-  if (ds && typeof ds.batteryLevel === 'number') {
-    const batteryColor = ds.batteryLevel > 50 ? 'var(--ok)' : ds.batteryLevel > 20 ? 'var(--pending)' : 'var(--late)';
-    let lastSeenLabel = 'غير معروف';
-    if (ds.lastSeen) {
-      const diffMs = Date.now() - new Date(ds.lastSeen).getTime();
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      lastSeenLabel = diffHours < 1 ? 'قبل أقل من ساعة' : diffHours < 24 ? `قبل ${diffHours} ساعة` : `قبل ${Math.floor(diffHours / 24)} يوم`;
-    }
-    deviceStatusHtml = `
-      <div class="admin-field" style="display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--text-2);">
-        <span>🔋 جهاز بوابة SMS: <strong style="color:${batteryColor};">${ds.batteryLevel}%</strong></span>
-        <span>آخر ظهور: ${lastSeenLabel}</span>
-      </div>
-    `;
-  }
 
   mount.innerHTML = `
     <div class="admin-overlay" id="adminOverlay">
       <div class="admin-modal">
         <button class="admin-close" id="adminCloseBtn" aria-label="إغلاق">${ICONS.close}</button>
         <h3>لوحة التحكم</h3>
-        ${smsQueueHtml}
-        ${deviceStatusHtml}
+        <div id="adminExtras">${buildAdminExtrasHtml_()}</div>
         <div class="admin-field"><label>مفتاح المشرف (Admin Key)</label><input type="password" id="adminKeyInput" placeholder="أدخل المفتاح السري" autocomplete="off"></div>
+        <div id="adminDataStatus" class="admin-note" style="display:none"></div>
 
         <div class="admin-field">
           <label>الإجراء المطلوب</label>
@@ -1466,7 +1435,7 @@ function openAdminPanel() {
         <div class="admin-section" data-section="reviewDate">
           <div class="admin-field">
             <label>التاريخ الجديد (يُستخدم لحساب حالة الجميع: منتظم/متأخر)</label>
-            <input type="date" id="reviewDateInput" value="${lastLoadedData && lastLoadedData.reviewDate ? lastLoadedData.reviewDate : ''}">
+            <input type="date" id="reviewDateInput" value="${adminData.reviewDate ? adminData.reviewDate : ''}">
             <div class="admin-note">حدّثه فور رفع كشف حساب جديد بدل فتح الشيت وتعديل الخلية يدويًا. تغييره يُعيد حساب حالة جميع الأعضاء فورًا.</div>
           </div>
           <div class="admin-actions"><button class="admin-btn" id="setReviewDateBtn">تحديث التاريخ</button></div>
@@ -1476,7 +1445,7 @@ function openAdminPanel() {
         <div class="admin-section" data-section="subscriptionAmount">
           <div class="admin-field">
             <label>قيمة الاشتراك الشهري لكل عضو (ريال)</label>
-            <input type="number" id="subscriptionAmountInput" min="1" step="1" value="${lastLoadedData && lastLoadedData.subscriptionAmount ? lastLoadedData.subscriptionAmount : ''}">
+            <input type="number" id="subscriptionAmountInput" min="1" step="1" value="${adminData.subscriptionAmount ? adminData.subscriptionAmount : ''}">
             <div class="admin-note">تُستخدم فقط في حساب "اكتمال الأشهر الستة" المعروض بالموقع، ولا تُغيّر آلية حساب متأخر/منتظم الحالية إطلاقًا (تلك تبقى معتمدة على تاريخ آخر حوالة فقط).</div>
           </div>
           <div class="admin-actions"><button class="admin-btn" id="setSubscriptionAmountBtn">تحديث القيمة</button></div>
@@ -1491,6 +1460,77 @@ function openAdminPanel() {
   // ربط أزرار "تأكيد" في قائمة انتظار SMS — كل زر مستقل عن الآخر، يحتاج
   // اختيار عضو من القائمة المنسدلة بجانبه أولًا، ويستخدم مفتاح المشرف
   // نفسه المُدخَل بالأعلى (لا حقل مفتاح منفصل لكل عنصر).
+  bindSmsQueueButtons_();
+
+  document.getElementById('adminKeyInput').addEventListener('input', (e) => {
+    adminKeyValue = e.target.value;
+    // أي تغيير في المفتاح المكتوب يُلغي التخزين المؤقت فورًا — نتيجة تحقق
+    // سابقة لمفتاح مختلف لا معنى لها إطلاقًا للمفتاح الجديد.
+    adminKeyCache = { key: null, valid: null, checkedAt: 0 };
+    if (adminDataLoaded) { clearAdminData_(); refreshAdminPanelData_(); setAdminDataStatus_('', ''); }
+  });
+  // عند انتهاء كتابة المفتاح (مغادرة الحقل أو Enter) تُجلب بيانات المشرف مرة واحدة
+  // — وليس مع كل حرف، حتى لا تُحسب محاولات خاطئة على قفل المفتاح في السكربت.
+  document.getElementById('adminKeyInput').addEventListener('change', () => { if (adminKeyValue) loadAdminData_(); });
+  document.getElementById('parsePdfBtn').addEventListener('click', handleParsePdf);
+  document.getElementById('addMemberBtn').addEventListener('click', handleAddMember);
+  document.getElementById('editMemberBtn').addEventListener('click', handleEditMember);
+  document.getElementById('setStatusBtn').addEventListener('click', handleSetMemberStatus);
+  document.getElementById('delTransferBtn').addEventListener('click', handleDeleteTransfer);
+  document.getElementById('delTransferMemberSelect').addEventListener('change', handleDelTransferMemberChange);
+  document.getElementById('setReviewDateBtn').addEventListener('click', handleSetReviewDate);
+  document.getElementById('setSubscriptionAmountBtn').addEventListener('click', handleSetSubscriptionAmount);
+
+  const actionSelect = document.getElementById('adminActionSelect');
+  const showSection = (val) => {
+    document.querySelectorAll('.admin-section').forEach(sec => sec.classList.toggle('active', sec.dataset.section === val));
+  };
+  actionSelect.addEventListener('change', (e) => showSection(e.target.value));
+  showSection(actionSelect.value);
+}
+
+function buildAdminExtrasHtml_() {
+  const memberOptions = `<option value="">— اختر عضوًا —</option>${MEMBERS.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(memberLabelWithLast4_(n))}</option>`).join('')}`;
+  // قسم قائمة انتظار SMS — يظهر فقط عند وجود عناصر فعلية بانتظار تحديد
+  // العضو (رسائل إيداع لم تُطابَق تلقائيًا). كل صف يحمل اختيار عضو + زر
+  // تأكيد مستقل، بنفس قائمة الأعضاء المستخدَمة في بقية لوحة التحكم.
+  const smsQueue = Array.isArray(adminData.smsQueuePending) ? adminData.smsQueuePending : [];
+  const smsQueueHtml = smsQueue.length === 0 ? '' : `
+    <div class="admin-field sms-queue-section">
+      <label>🔔 ${smsQueue.length} ${smsQueue.length === 1 ? 'رسالة' : 'رسائل'} بانتظار تحديد العضو</label>
+      ${smsQueue.map(item => `
+        <div class="sms-queue-item" data-queue-id="${escapeHtml(item.id)}" style="border:1px solid var(--border-strong);border-radius:var(--r-md);padding:10px;margin-bottom:8px;">
+          <div style="margin-bottom:6px;font-size:14px;"><strong>${escapeHtml(item.rawName)}</strong> — ${escapeHtml(String(item.amount))} ريال — ${escapeHtml(item.date)}</div>
+          <select class="sms-queue-member-select">${memberOptions}</select>
+          <button type="button" class="admin-btn sms-queue-confirm-btn" style="margin-top:6px;width:100%;">تأكيد ✔</button>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  // حالة جهاز بوابة SMS (بطارية + آخر ظهور) — سطر معلوماتي بسيط، يظهر
+  // فقط لو وصلت بيانات فعلية من reportDeviceStatus ولو مرة واحدة.
+  const ds = adminData.deviceStatus;
+  let deviceStatusHtml = '';
+  if (ds && typeof ds.batteryLevel === 'number') {
+    const batteryColor = ds.batteryLevel > 50 ? 'var(--ok)' : ds.batteryLevel > 20 ? 'var(--pending)' : 'var(--late)';
+    let lastSeenLabel = 'غير معروف';
+    if (ds.lastSeen) {
+      const diffMs = Date.now() - new Date(ds.lastSeen).getTime();
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      lastSeenLabel = diffHours < 1 ? 'قبل أقل من ساعة' : diffHours < 24 ? `قبل ${diffHours} ساعة` : `قبل ${Math.floor(diffHours / 24)} يوم`;
+    }
+    deviceStatusHtml = `
+      <div class="admin-field" style="display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--text-2);">
+        <span>🔋 جهاز بوابة SMS: <strong style="color:${batteryColor};">${ds.batteryLevel}%</strong></span>
+        <span>آخر ظهور: ${lastSeenLabel}</span>
+      </div>
+    `;
+  }
+  return smsQueueHtml + deviceStatusHtml;
+}
+
+function bindSmsQueueButtons_() {
   document.querySelectorAll('.sms-queue-confirm-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
       const itemEl = btn.closest('.sms-queue-item');
@@ -1523,31 +1563,90 @@ function openAdminPanel() {
       }
     });
   });
-
-  document.getElementById('adminKeyInput').addEventListener('input', (e) => {
-    adminKeyValue = e.target.value;
-    // أي تغيير في المفتاح المكتوب يُلغي التخزين المؤقت فورًا — نتيجة تحقق
-    // سابقة لمفتاح مختلف لا معنى لها إطلاقًا للمفتاح الجديد.
-    adminKeyCache = { key: null, valid: null, checkedAt: 0 };
-  });
-  document.getElementById('parsePdfBtn').addEventListener('click', handleParsePdf);
-  document.getElementById('addMemberBtn').addEventListener('click', handleAddMember);
-  document.getElementById('editMemberBtn').addEventListener('click', handleEditMember);
-  document.getElementById('setStatusBtn').addEventListener('click', handleSetMemberStatus);
-  document.getElementById('delTransferBtn').addEventListener('click', handleDeleteTransfer);
-  document.getElementById('delTransferMemberSelect').addEventListener('change', handleDelTransferMemberChange);
-  document.getElementById('setReviewDateBtn').addEventListener('click', handleSetReviewDate);
-  document.getElementById('setSubscriptionAmountBtn').addEventListener('click', handleSetSubscriptionAmount);
-
-  const actionSelect = document.getElementById('adminActionSelect');
-  const showSection = (val) => {
-    document.querySelectorAll('.admin-section').forEach(sec => sec.classList.toggle('active', sec.dataset.section === val));
-  };
-  actionSelect.addEventListener('change', (e) => showSection(e.target.value));
-  showSection(actionSelect.value);
 }
 
-function closeAdminPanel() { document.getElementById('adminMount').innerHTML = ''; reviewRows = []; }
+function setAdminDataStatus_(text, type) {
+  const el = document.getElementById('adminDataStatus');
+  if (!el) return;
+  el.style.display = text ? 'block' : 'none';
+  el.textContent = text || '';
+  el.style.color = type === 'error' ? 'var(--late)' : (type === 'ok' ? 'var(--ok)' : '');
+}
+
+function clearAdminData_() {
+  adminData = { memberDetails: [], smsQueuePending: [], deviceStatus: null, reviewDate: '', subscriptionAmount: 0 };
+  adminDataLoaded = false;
+  MEMBER_ENGLISH = [];
+  MEMBER_LAST4 = {};
+}
+
+function applyAdminData_(r) {
+  const details = Array.isArray(r.memberDetails) ? r.memberDetails : [];
+  const known = {};
+  MEMBERS.forEach(n => { known[n] = true; });
+  MEMBER_ENGLISH = details
+    .filter(m => known[m.name] && m.englishName)
+    .map(m => ({ name: m.name, words: String(m.englishName).toUpperCase().split(/\s+/).filter(Boolean) }));
+  MEMBER_LAST4 = {};
+  details.forEach(m => { if (known[m.name] && m.accountLast4) MEMBER_LAST4[m.name] = m.accountLast4; });
+  adminData = {
+    memberDetails: details,
+    smsQueuePending: Array.isArray(r.smsQueuePending) ? r.smsQueuePending : [],
+    deviceStatus: r.deviceStatus || null,
+    reviewDate: r.reviewDate || '',
+    subscriptionAmount: Number(r.subscriptionAmount) || 0
+  };
+  adminDataLoaded = true;
+}
+
+// تحديث الأجزاء المعتمدة على بيانات المشرف داخل اللوحة المفتوحة دون إعادة رسمها
+// (حتى لا يضيع المفتاح المكتوب ولا الاختيارات الحالية).
+function refreshAdminPanelData_() {
+  const extras = document.getElementById('adminExtras');
+  if (extras) { extras.innerHTML = buildAdminExtrasHtml_(); bindSmsQueueButtons_(); }
+  document.querySelectorAll('#adminMount select option').forEach(opt => {
+    if (opt.value && MEMBERS.indexOf(opt.value) !== -1) opt.textContent = memberLabelWithLast4_(opt.value);
+  });
+  const rd = document.getElementById('reviewDateInput');
+  if (rd && !rd.value && adminData.reviewDate) rd.value = adminData.reviewDate;
+  const sa = document.getElementById('subscriptionAmountInput');
+  if (sa && !sa.value && adminData.subscriptionAmount) sa.value = adminData.subscriptionAmount;
+}
+
+async function loadAdminData_() {
+  if (!adminKeyValue) return { ok: false, error: 'أدخل مفتاح المشرف أولًا.' };
+  if (isAdminKeyCachedInvalid_()) return { ok: false, error: ADMIN_KEY_CACHED_INVALID_TEXT };
+  if (adminDataPromise_) return adminDataPromise_;
+  const keyUsed = adminKeyValue;
+  adminDataPromise_ = (async () => {
+    setAdminDataStatus_('جارٍ تحميل بيانات المشرف...', '');
+    try {
+      const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'getAdminData', adminKey: keyUsed }) });
+      const result = await resp.json();
+      recordAdminKeyOutcome_(result);
+      if (keyUsed !== adminKeyValue) return { ok: false, error: '' }; // تغيّر المفتاح أثناء الطلب
+      if (result && result.success) {
+        applyAdminData_(result);
+        refreshAdminPanelData_();
+        setAdminDataStatus_('تم تحميل بيانات المشرف ✓', 'ok');
+        return { ok: true };
+      }
+      const msg = (result && result.error) || 'تعذّر تحميل بيانات المشرف.';
+      setAdminDataStatus_(msg, 'error');
+      return { ok: false, error: msg };
+    } catch (err) {
+      const msg = 'تعذّر الاتصال بالخادم.';
+      setAdminDataStatus_(msg, 'error');
+      return { ok: false, error: msg };
+    } finally {
+      adminDataPromise_ = null;
+    }
+  })();
+  return adminDataPromise_;
+}
+
+
+function closeAdminPanel() { document.getElementById('adminMount').innerHTML = ''; reviewRows = []; clearAdminData_(); adminKeyValue = ''; adminKeyCache = { key: null, valid: null, checkedAt: 0 }; }
 
 async function handleAddMember() {
   const nameInput = document.getElementById('newMemberName');
@@ -2301,6 +2400,11 @@ async function handleParsePdf() {
   const fileInput = document.getElementById('pdfFileInput');
   if (!adminKeyValue) { showAdminMsgPlain('الرجاء إدخال مفتاح المشرف أولاً.', 'error'); return; }
   if (isAdminKeyCachedInvalid_()) { showAdminMsgPlain(ADMIN_KEY_CACHED_INVALID_TEXT, 'error'); return; }
+  if (!adminDataLoaded) {
+    showAdminMsgPlain('جارٍ تحميل بيانات المشرف...', '');
+    const adminLoad = await loadAdminData_();
+    if (!adminLoad.ok) { showAdminMsgPlain(adminLoad.error || 'تعذّر تحميل بيانات المشرف.', 'error'); return; }
+  }
   if (!fileInput.files.length) { showAdminMsgPlain('الرجاء اختيار ملف PDF.', 'error'); return; }
   showAdminMsgPlain('جاري قراءة الملف...', '');
   try {
