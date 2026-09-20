@@ -573,6 +573,8 @@ const DEFAULT_FAMILY_CONFIG = {
   fundName: "صندوق صلة وإحسان العائلي",
   fundTagline: "تكافل .. عطاء .. استدامة",
   apiUrl: "https://script.google.com/macros/s/AKfycbzXfcGvNVt4cJy5svPGxugGD8YGv_OyEeCE-Ee9-E34FEXDX30vfZP4tBwBruNG-DXIvg/exec",
+  // نسخة ثابتة من البيانات العامة (يرفعها السكربت إلى GitHub) — تُقرأ أولًا لعرض فوري، ثم يؤكدها Apps Script في الخلفية.
+  staticDataUrl: "https://raw.githubusercontent.com/yasiralmsar/sila-data/main/data.json",
   bankProfile: "alrajhi",
   bankAccount: {
     fundName: "صلة وإحسان",
@@ -627,19 +629,84 @@ function showErrorState(message) {
       <div class="skeleton skeleton-row"></div>
       <div class="skeleton skeleton-row"></div>
     `;
-    loadData();
+    loadData({ fast: true });
   });
 }
 
-async function loadData() {
+/* =========================================================================
+   تحميل البيانات — مسارين متوازيين عند فتح الصفحة:
+   (أ) النسخة الثابتة data.json من CDN (أجزاء من الثانية) → تُعرض فورًا.
+   (ب) Apps Script (المصدر الحقيقي، أبطأ) → يؤكّد ويستبدل العرض إن اختلف شيء.
+   لو فشل (أ) لأي سبب يكمل (ب) كما كان تمامًا. ولو فشل (ب) بعد نجاح (أ) تبقى
+   النسخة المعروضة دون رسالة خطأ. التحديثات بعد أي إجراء إداري تذهب مباشرة
+   لـ (ب) فقط (لا تُستخدم فيها النسخة الثابتة لأنها قد تتأخر بضع دقائق).
+   ========================================================================= */
+let _dataLoadSeq = 0;
+
+async function fetchJsonWithTimeout_(url, ms) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
   try {
-    const response = await fetch(API_URL);
-    const data = await response.json();
-    if (data.error) { showErrorState(data.error); return; }
-    renderApp(data);
+    const resp = await fetch(url, { signal: ctrl.signal });
+    return await resp.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// محاولتان لـ Apps Script (تحويلة + بدء بارد قد تفشل مرة على الخلوي).
+async function fetchLiveData_() {
+  let lastErr;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await fetchJsonWithTimeout_(API_URL, 30000);
+    } catch (e) {
+      lastErr = e;
+      if (attempt === 0) await new Promise(r => setTimeout(r, 1200));
+    }
+  }
+  throw lastErr;
+}
+
+function isValidSnapshot_(d) {
+  return !!d && typeof d === 'object' && !d.error &&
+    typeof d.balance === 'number' && Array.isArray(d.members) &&
+    Array.isArray(d.lateMembers) && Array.isArray(d.expensesList);
+}
+
+function payloadFingerprint_(d) {
+  const c = Object.assign({}, d);
+  delete c.publishedAt;
+  return JSON.stringify(c);
+}
+
+async function loadData(opts) {
+  const seq = ++_dataLoadSeq;
+  // النسخة الثابتة خاصة بهذا الصندوق فقط: لا تُستخدم مع رابط سكربت مختلف (عائلة أخرى).
+  const useStatic = !!(opts && opts.fast) && !!FAMILY_CONFIG.staticDataUrl && API_URL === DEFAULT_FAMILY_CONFIG.apiUrl;
+  let liveDone = false;
+  let shownFromStatic = false;
+
+  if (useStatic) {
+    fetchJsonWithTimeout_(FAMILY_CONFIG.staticDataUrl, 6000).then(d => {
+      if (seq !== _dataLoadSeq || liveDone || !isValidSnapshot_(d)) return;
+      shownFromStatic = true;
+      renderApp(d);
+    }).catch(() => { /* صامت: المسار (ب) يكمل */ });
+  }
+
+  try {
+    const data = await fetchLiveData_();
+    if (seq !== _dataLoadSeq) return;
+    liveDone = true;
+    if (data.error) { if (!shownFromStatic) showErrorState(data.error); return; }
+    const same = shownFromStatic && lastLoadedData && payloadFingerprint_(lastLoadedData) === payloadFingerprint_(data);
+    if (!same) renderApp(data);
     if (adminDataLoaded && adminKeyValue) loadAdminData_(); // تحديث صامت لبيانات المشرف بعد أي تعديل
   } catch (e) {
-    showErrorState('تحقق من اتصالك بالإنترنت ثم أعد المحاولة.');
+    if (seq !== _dataLoadSeq) return;
+    liveDone = true;
+    if (!shownFromStatic) showErrorState('تحقق من اتصالك بالإنترنت ثم أعد المحاولة.');
   }
 }
 
@@ -1019,13 +1086,13 @@ function renderSetupScreen_() {
     FAMILY_CONFIG = Object.assign({}, DEFAULT_FAMILY_CONFIG, newConfig);
     API_URL = FAMILY_CONFIG.apiUrl;
     applyBranding();
-    loadData();
+    loadData({ fast: true });
   });
 }
 
 if (ensureFamilyConfigured_()) {
   applyBranding();
-  loadData();
+  loadData({ fast: true });
 }
 </script>
 
