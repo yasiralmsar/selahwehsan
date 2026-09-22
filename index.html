@@ -53,6 +53,8 @@
   --pending-dim: rgba(238,174,75,0.16);
   --new-member: #6bb6ff;
   --new-member-dim: rgba(107,182,255,0.16);
+  --awaiting: #b892ff;
+  --awaiting-dim: rgba(184,146,255,0.16);
   --shadow-card: 0 20px 50px rgba(0,0,0,0.35);
   --scrim: rgba(4,10,8,0.6);
 }
@@ -80,6 +82,8 @@
   --pending-dim: rgba(185,121,30,0.10);
   --new-member: #1a73c4;
   --new-member-dim: rgba(26,115,196,0.10);
+  --awaiting: #7c4dcc;
+  --awaiting-dim: rgba(124,77,204,0.10);
   --shadow-card: 0 16px 40px rgba(18,33,28,0.10);
   --scrim: rgba(18,33,28,0.35);
 }
@@ -237,6 +241,7 @@ body.section-expenses { background: var(--bg-expenses); }
 .stat-cell.late .dot { background: var(--late); }
 .stat-cell.pending .dot { background: var(--pending); }
 .stat-cell.new .dot { background: var(--new-member); }
+.stat-cell.awaiting .dot { background: var(--awaiting); }
 .stat-cell .num { font-size: 27px; font-weight: 900; color: var(--text-1); }
 .stat-cell .label { font-size: var(--fs-tiny); color: var(--text-2); margin-top: 4px; font-weight: 700; }
 
@@ -275,6 +280,7 @@ section { margin-top: var(--sp-7); scroll-margin-top: var(--sp-5); }
 .pill.late { background: var(--late-dim); color: var(--late); }
 .pill.pending { background: var(--pending-dim); color: var(--pending); }
 .pill.new { background: var(--new-member-dim); color: var(--new-member); }
+.pill.awaiting { background: var(--awaiting-dim); color: var(--awaiting); }
 .pill .pdot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
 .late-list { display: flex; flex-direction: column; gap: 10px; }
@@ -476,8 +482,9 @@ footer { text-align: center; padding: var(--sp-6) var(--sp-5) var(--sp-4); font-
 
 <div id="infoTooltip" class="info-tooltip" hidden>
   <button class="info-tooltip-close" id="infoTooltipClose" type="button" aria-label="إغلاق"></button>
-  <p><strong>منتظم</strong> — آخر تحويل للعضو ضمن الدورة الشهرية الحالية.</p>
-  <p><strong>متأخر</strong> — مضت دورة واحدة أو أكثر بدون تحويل جديد.</p>
+  <p><strong>منتظم</strong> — لا يوجد على العضو أي دورة سابقة أو حالية غير مُغطاة بحوالاته.</p>
+  <p><strong>لم يحوّل بعد</strong> — بدأت الدورة الحالية ولم تصل حوالة العضو بعد، لكن ما زال ضمن مهلة السداد المعتادة (حتى نحو يوم 10 من الشهر).</p>
+  <p><strong>متأخر</strong> — مضت دورة واحدة أو أكثر بدون تحويل جديد، وتجاوزت مهلة السداد.</p>
   <p><strong>معلق</strong> — حالة مؤقتة تُضبط يدويًا من لوحة التحكم (لعذر أو ظرف خاص)، ولا تُحتسب ضمن المتأخرين حتى تُلغى.</p>
   <p><strong>الدورة</strong> — فترة شهرية تمتد من يوم 24 لكل شهر إلى يوم 23 من الشهر التالي.</p>
 </div>
@@ -527,6 +534,8 @@ const ICONS = {
   alertCircle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12.5"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>',
   copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>'
+,
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
 };
 document.getElementById('themeToggleBtn').innerHTML = ICONS.moon;
 document.getElementById('adminTriggerBtn').innerHTML = ICONS.gear;
@@ -711,12 +720,12 @@ async function loadData(opts) {
 }
 
 function fmt(num) { return Number(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function statusLabel(status) { return status === 'ok' ? 'منتظم' : (status === 'pending' ? 'معلق' : (status === 'new' ? 'عضو جديد' : 'متأخر')); }
-function statusIcon(status) { return status === 'ok' ? ICONS.checkCircle : (status === 'pending' ? ICONS.alertCircle : (status === 'new' ? ICONS.info : ICONS.alertTriangle)); }
+function statusLabel(status) { return status === 'ok' ? 'منتظم' : (status === 'pending' ? 'معلق' : (status === 'new' ? 'عضو جديد' : (status === 'awaiting' ? 'لم يحوّل بعد' : 'متأخر'))); }
+function statusIcon(status) { return status === 'ok' ? ICONS.checkCircle : (status === 'pending' ? ICONS.alertCircle : (status === 'new' ? ICONS.info : (status === 'awaiting' ? ICONS.clock : ICONS.alertTriangle))); }
 
 function memberRowHtml(m, idx, animated) {
   const cascadeAttrs = animated ? ` class="row-item cascade-item" data-cascade-idx="${idx}"` : ' class="row-item"';
-  const statusClass = m.status === 'ok' ? 'ok' : (m.status === 'pending' ? 'pending' : (m.status === 'new' ? 'new' : 'late'));
+  const statusClass = m.status === 'ok' ? 'ok' : (m.status === 'pending' ? 'pending' : (m.status === 'new' ? 'new' : (m.status === 'awaiting' ? 'awaiting' : 'late')));
   return `
     <div${cascadeAttrs}>
       <div class="row-name">${escapeHtml(m.name)}</div>
@@ -804,6 +813,8 @@ function renderApp(d) {
   const statsCells = [];
   statsCells.push(`<div class="stat-cell"><div class="dot"></div><div class="num count-num" data-count="${d.okCount}">0</div><div class="label">منتظم</div></div>`);
   statsCells.push(`<div class="stat-cell late"><div class="dot"></div><div class="num count-num" data-count="${d.lateMembers.length}">0</div><div class="label">متأخر</div></div>`);
+  const hasAwaiting = (d.awaitingCount || 0) > 0;
+  if (hasAwaiting) statsCells.push(`<div class="stat-cell awaiting"><div class="dot"></div><div class="num count-num" data-count="${d.awaitingCount}">0</div><div class="label">لم يحوّل بعد</div></div>`);
   const hasPending = (d.pendingCount || 0) > 0;
   const hasNew = (d.newCount || 0) > 0;
   if (hasPending) statsCells.push(`<div class="stat-cell pending"><div class="dot"></div><div class="num count-num" data-count="${d.pendingCount}">0</div><div class="label">معلق</div></div>`);
@@ -838,7 +849,7 @@ function renderApp(d) {
 
     <section class="reveal" id="membersSection">
       <div class="section-header"><span class="eyebrow-bar"></span><h2>كشف الحسابات المفصل للأعضاء</h2></div>
-      <input type="text" id="searchInput" class="search-input" placeholder="ابحث عن اسم عضو أو حالة (منتظم/متأخر/معلق)...">
+      <input type="text" id="searchInput" class="search-input" placeholder="ابحث عن اسم عضو أو حالة (منتظم/لم يحوّل بعد/متأخر/معلق)...">
       <div class="list-card" id="tableBody">${rowsHtml}</div>
     </section>
 
@@ -1001,7 +1012,7 @@ function initSearch() {
     const tbody = document.getElementById('tableBody');
     const normalize = text => text.toLowerCase().replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").trim();
     let filtered;
-    if (normalize(query) === "متاخر" || normalize(query) === "منتظم" || normalize(query) === "معلق") {
+    if (normalize(query) === "متاخر" || normalize(query) === "منتظم" || normalize(query) === "معلق" || normalize(query) === normalize("لم يحوّل بعد")) {
       filtered = allMembersData.filter(m => normalize(statusLabel(m.status)) === normalize(query));
     } else {
       filtered = allMembersData.filter(m => normalize(m.name.split(" ")[0]).startsWith(normalize(query)));
