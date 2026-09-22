@@ -1408,7 +1408,8 @@ const ADMIN_ACTIONS = [
   { value: 'editMember', label: 'تعديل بيانات عضو' },
   { value: 'status', label: 'تغيير حالة السداد' },
   { value: 'deleteTransfer', label: 'حذف حوالة' },
-  { value: 'reviewDate', label: 'تحديث تاريخ آخر مراجعة' },
+  // 'reviewDate' أُزيل من القائمة عمدًا: تاريخ المراجعة أصبح معادلة تلقائية (=TODAY()-16) في الشيت،
+  // وأي تحديث يدوي من هنا يكتب فوقها ويعيدها لتاريخ ثابت. الدالة/الخادم ما زالا موجودين احتياطًا.
   { value: 'subscriptionAmount', label: 'قيمة الاشتراك الشهري' }
 ];
 
@@ -1499,16 +1500,6 @@ function openAdminPanel() {
           <div id="delTransferMsg"></div>
         </div>
 
-        <div class="admin-section" data-section="reviewDate">
-          <div class="admin-field">
-            <label>التاريخ الجديد (يُستخدم لحساب حالة الجميع: منتظم/متأخر)</label>
-            <input type="date" id="reviewDateInput" value="${adminData.reviewDate ? adminData.reviewDate : ''}">
-            <div class="admin-note">حدّثه فور رفع كشف حساب جديد بدل فتح الشيت وتعديل الخلية يدويًا. تغييره يُعيد حساب حالة جميع الأعضاء فورًا.</div>
-          </div>
-          <div class="admin-actions"><button class="admin-btn" id="setReviewDateBtn">تحديث التاريخ</button></div>
-          <div id="reviewDateMsg"></div>
-        </div>
-
         <div class="admin-section" data-section="subscriptionAmount">
           <div class="admin-field">
             <label>قيمة الاشتراك الشهري لكل عضو (ريال)</label>
@@ -1545,7 +1536,6 @@ function openAdminPanel() {
   document.getElementById('setStatusBtn').addEventListener('click', handleSetMemberStatus);
   document.getElementById('delTransferBtn').addEventListener('click', handleDeleteTransfer);
   document.getElementById('delTransferMemberSelect').addEventListener('change', handleDelTransferMemberChange);
-  document.getElementById('setReviewDateBtn').addEventListener('click', handleSetReviewDate);
   document.getElementById('setSubscriptionAmountBtn').addEventListener('click', handleSetSubscriptionAmount);
 
   const actionSelect = document.getElementById('adminActionSelect');
@@ -1674,8 +1664,6 @@ function refreshAdminPanelData_() {
   document.querySelectorAll('#adminMount select option').forEach(opt => {
     if (opt.value && MEMBERS.indexOf(opt.value) !== -1) opt.textContent = memberLabelWithLast4_(opt.value);
   });
-  const rd = document.getElementById('reviewDateInput');
-  if (rd && !rd.value && adminData.reviewDate) rd.value = adminData.reviewDate;
   const sa = document.getElementById('subscriptionAmountInput');
   if (sa && !sa.value && adminData.subscriptionAmount) sa.value = adminData.subscriptionAmount;
 }
@@ -1926,32 +1914,6 @@ async function handleEditMember() {
       const fieldsText = result.updatedFields && result.updatedFields.length ? result.updatedFields.join('، ') : 'لا شيء';
       msgEl.innerHTML = `<div class="admin-msg success">تم التحديث بنجاح (${escapeHtml(fieldsText)}).</div>`;
       newNameInput.value = ''; opTypeInput.value = ''; emailInput.value = ''; phoneInput.value = ''; englishInput.value = ''; accountLast4Input.value = '';
-      loadData();
-    } else {
-      msgEl.innerHTML = '<div class="admin-msg error">فشل التحديث: ' + escapeHtml(result.error || 'خطأ غير معروف') + '</div>';
-    }
-  } catch (err) {
-    msgEl.innerHTML = '<div class="admin-msg error">تعذّر الاتصال بالسكربت: ' + escapeHtml(err.message) + '</div>';
-  } finally { btn.disabled = false; }
-}
-
-async function handleSetReviewDate() {
-  const input = document.getElementById('reviewDateInput');
-  const msgEl = document.getElementById('reviewDateMsg');
-  if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً.</div>'; return; }
-  if (isAdminKeyCachedInvalid_()) { msgEl.innerHTML = ADMIN_KEY_CACHED_INVALID_MSG; return; }
-  if (!input.value) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء اختيار التاريخ.</div>'; return; }
-  if (!confirm(`هل أنت متأكد من تحديث تاريخ المراجعة إلى ${input.value}؟ سيُعاد حساب حالة جميع الأعضاء بناءً عليه.`)) return;
-  const btn = document.getElementById('setReviewDateBtn');
-  btn.disabled = true;
-  msgEl.innerHTML = '<div class="admin-msg">جاري التحديث...</div>';
-  try {
-    const payload = { action: 'setReviewDate', adminKey: adminKeyValue, reviewDate: input.value };
-    const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
-    const result = await resp.json();
-    recordAdminKeyOutcome_(result);
-    if (result.success) {
-      msgEl.innerHTML = `<div class="admin-msg success">تم تحديث تاريخ المراجعة إلى ${escapeHtml(result.reviewDate)} بنجاح — سيُعاد حساب حالة كل الأعضاء تلقائيًا.</div>`;
       loadData();
     } else {
       msgEl.innerHTML = '<div class="admin-msg error">فشل التحديث: ' + escapeHtml(result.error || 'خطأ غير معروف') + '</div>';
