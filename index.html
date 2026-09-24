@@ -483,7 +483,7 @@ footer { text-align: center; padding: var(--sp-6) var(--sp-5) var(--sp-4); font-
 <div id="infoTooltip" class="info-tooltip" hidden>
   <button class="info-tooltip-close" id="infoTooltipClose" type="button" aria-label="إغلاق"></button>
   <p><strong>منتظم</strong> — لا يوجد على العضو أي دورة سابقة أو حالية غير مُغطاة بحوالاته.</p>
-  <p><strong>لم يحوّل بعد</strong> — بدأت الدورة الحالية ولم تصل حوالة العضو بعد، لكن ما زال ضمن مهلة السداد المعتادة (حتى نحو يوم 10 من الشهر).</p>
+  <p><strong>بانتظار السداد</strong> — بدأت الدورة الحالية ولم تصل حوالة العضو بعد، لكن ما زال ضمن مهلة السداد المعتادة (حتى نحو يوم 10 من الشهر).</p>
   <p><strong>متأخر</strong> — مضت دورة واحدة أو أكثر بدون تحويل جديد، وتجاوزت مهلة السداد.</p>
   <p><strong>معلق</strong> — حالة مؤقتة تُضبط يدويًا من لوحة التحكم (لعذر أو ظرف خاص)، ولا تُحتسب ضمن المتأخرين حتى تُلغى.</p>
   <p><strong>الدورة</strong> — فترة شهرية تمتد من يوم 24 لكل شهر إلى يوم 23 من الشهر التالي.</p>
@@ -720,7 +720,7 @@ async function loadData(opts) {
 }
 
 function fmt(num) { return Number(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function statusLabel(status) { return status === 'ok' ? 'منتظم' : (status === 'pending' ? 'معلق' : (status === 'new' ? 'عضو جديد' : (status === 'awaiting' ? 'لم يحوّل بعد' : 'متأخر'))); }
+function statusLabel(status) { return status === 'ok' ? 'منتظم' : (status === 'pending' ? 'معلق' : (status === 'new' ? 'عضو جديد' : (status === 'awaiting' ? 'بانتظار السداد' : 'متأخر'))); }
 function statusIcon(status) { return status === 'ok' ? ICONS.checkCircle : (status === 'pending' ? ICONS.alertCircle : (status === 'new' ? ICONS.info : (status === 'awaiting' ? ICONS.clock : ICONS.alertTriangle))); }
 
 function memberRowHtml(m, idx, animated) {
@@ -814,7 +814,7 @@ function renderApp(d) {
   statsCells.push(`<div class="stat-cell"><div class="dot"></div><div class="num count-num" data-count="${d.okCount}">0</div><div class="label">منتظم</div></div>`);
   statsCells.push(`<div class="stat-cell late"><div class="dot"></div><div class="num count-num" data-count="${d.lateMembers.length}">0</div><div class="label">متأخر</div></div>`);
   const hasAwaiting = (d.awaitingCount || 0) > 0;
-  if (hasAwaiting) statsCells.push(`<div class="stat-cell awaiting"><div class="dot"></div><div class="num count-num" data-count="${d.awaitingCount}">0</div><div class="label">لم يحوّل بعد</div></div>`);
+  if (hasAwaiting) statsCells.push(`<div class="stat-cell awaiting"><div class="dot"></div><div class="num count-num" data-count="${d.awaitingCount}">0</div><div class="label">بانتظار السداد</div></div>`);
   const hasPending = (d.pendingCount || 0) > 0;
   const hasNew = (d.newCount || 0) > 0;
   if (hasPending) statsCells.push(`<div class="stat-cell pending"><div class="dot"></div><div class="num count-num" data-count="${d.pendingCount}">0</div><div class="label">معلق</div></div>`);
@@ -849,7 +849,7 @@ function renderApp(d) {
 
     <section class="reveal" id="membersSection">
       <div class="section-header"><span class="eyebrow-bar"></span><h2>كشف الحسابات المفصل للأعضاء</h2></div>
-      <input type="text" id="searchInput" class="search-input" placeholder="ابحث عن اسم عضو أو حالة (منتظم/لم يحوّل بعد/متأخر/معلق)...">
+      <input type="text" id="searchInput" class="search-input" placeholder="ابحث عن اسم عضو أو حالة (منتظم/بانتظار السداد/متأخر/معلق)...">
       <div class="list-card" id="tableBody">${rowsHtml}</div>
     </section>
 
@@ -1012,7 +1012,7 @@ function initSearch() {
     const tbody = document.getElementById('tableBody');
     const normalize = text => text.toLowerCase().replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").trim();
     let filtered;
-    if (normalize(query) === "متاخر" || normalize(query) === "منتظم" || normalize(query) === "معلق" || normalize(query) === normalize("لم يحوّل بعد")) {
+    if (normalize(query) === "متاخر" || normalize(query) === "منتظم" || normalize(query) === "معلق" || normalize(query) === normalize("بانتظار السداد")) {
       filtered = allMembersData.filter(m => normalize(statusLabel(m.status)) === normalize(query));
     } else {
       filtered = allMembersData.filter(m => normalize(m.name.split(" ")[0]).startsWith(normalize(query)));
