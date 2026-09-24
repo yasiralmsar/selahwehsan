@@ -83,7 +83,7 @@
   --new-member: #1a73c4;
   --new-member-dim: rgba(26,115,196,0.10);
   --awaiting: #7c4dcc;
-  --awaiting-dim: rgba(124,77,204,0.10);
+  --awaiting-dim: rgba(124,77,204,0.18);
   --shadow-card: 0 16px 40px rgba(18,33,28,0.10);
   --scrim: rgba(18,33,28,0.35);
 }
@@ -542,15 +542,13 @@ document.getElementById('adminTriggerBtn').innerHTML = ICONS.gear;
 document.getElementById('infoTooltipClose').innerHTML = ICONS.close;
 
 /* =========================================================================
-   THEME — داكن افتراضيًا، مع تبديل يدوي محفوظ محليًا، ويحترم إعداد الجهاز
-   عند أول زيارة فقط.
+   THEME — يتبع إعداد جهاز الزائر (فاتح/داكن) عند أول زيارة، ثم يبقى أي
+   تبديل يدوي لاحق محفوظًا محليًا ويتغلب على إعداد الجهاز من بعدها.
    ========================================================================= */
 function initTheme() {
   const saved = localStorage.getItem('selahwehsan_theme');
-  const theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches && !saved ? 'dark' : 'dark');
-  // ملاحظة: نعتمد الوضع الداكن كافتراضي دائمًا (حتى لو كان جهاز المستخدم فاتحًا)
-  // بناءً على قرار تصميمي صريح، ونحترم فقط تفضيل المستخدم اليدوي المحفوظ محليًا.
-  applyTheme(saved || 'dark');
+  const theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  applyTheme(theme);
 }
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
