@@ -774,6 +774,7 @@ function renderApp(d) {
   lastLoadedData = d;
   allMembersData = d.members;
   MEMBERS = d.members.map(m => m.name);
+  EXPENSES_DATA = d.expensesList;
   // (الاسم الإنجليزي وآخر 4 أرقام لم تعد في الرد العام — تُحمَّل من بيانات المشرف بعد إدخال المفتاح: loadAdminData_)
 
   // شارة صغيرة على الزر العائم لو وُجدت رسائل SMS بانتظار تحديد العضو —
@@ -984,6 +985,14 @@ function initTabbar() {
   }, { rootMargin: '-10% 0px -70% 0px', threshold: 0 });
   sections.forEach(s => obs.observe(s));
   window._tabbarObserver = obs;
+  // يضبط التمييز فورًا عند الضغط، بدل انتظار مراقب التمرير وحده — الذي قد
+  // لا يلتقط الانتقال بدقة لبعض الأقسام (مثل قسم قصير أو انتقال سريع جدًا)،
+  // فيبقى التمييز عالقًا على التبويب القديم كما لوحظ فعليًا.
+  links.forEach(l => {
+    l.addEventListener('click', () => {
+      links.forEach(x => x.classList.toggle('active', x === l));
+    });
+  });
 }
 
 /* ===== خلفية تتحول تدريجيًا حسب القسم الظاهر على الشاشة ===== */
@@ -1246,6 +1255,7 @@ function getActiveBankProfile() {
 const DEFAULT_COLS = getActiveBankProfile().defaultCols;
 
 let MEMBERS = [];
+let EXPENSES_DATA = []; // {description, date, amount} — من آخر حمولة عامة، تُستخدم لتعبئة قائمة "تعديل/حذف مصروف"
 let MEMBER_ENGLISH = [];
 // خريطة (اسم العضو → آخر 4 أرقام من حسابه) — مرجع بصري فقط لمساعدة الأدمن
 // يدويًا عند تشابه الأسماء في قوائم الاختيار (لا علاقة لها بأي مطابقة تلقائية).
@@ -1417,6 +1427,7 @@ const ADMIN_ACTIONS = [
   { value: 'editMember', label: 'تعديل بيانات عضو' },
   { value: 'status', label: 'تغيير حالة السداد' },
   { value: 'deleteTransfer', label: 'حذف حوالة' },
+  { value: 'manageExpense', label: 'تعديل / حذف مصروف' },
   // 'reviewDate' أُزيل من القائمة عمدًا: تاريخ المراجعة أصبح معادلة تلقائية (=TODAY()-16) في الشيت،
   // وأي تحديث يدوي من هنا يكتب فوقها ويعيدها لتاريخ ثابت. الدالة/الخادم ما زالا موجودين احتياطًا.
   { value: 'subscriptionAmount', label: 'قيمة الاشتراك الشهري' }
@@ -1509,6 +1520,26 @@ function openAdminPanel() {
           <div id="delTransferMsg"></div>
         </div>
 
+        <div class="admin-section" data-section="manageExpense">
+          <div class="admin-field">
+            <label>المصروف</label>
+            <select id="expensePicker">
+              <option value="">— اختر مصروفًا —</option>
+              ${EXPENSES_DATA.map((exp, i) => `<option value="${i}" data-date="${escapeHtml(exp.date)}" data-desc="${escapeHtml(exp.description)}" data-amount="${exp.amount}">${escapeHtml(exp.date)} — ${escapeHtml(exp.description)} — ${fmt(exp.amount)} ﷼</option>`).join('')}
+            </select>
+            ${EXPENSES_DATA.length === 0 ? '<div class="admin-note">لا توجد مصروفات مسجَّلة بعد.</div>' : ''}
+          </div>
+          <div class="admin-field"><label>التاريخ الجديد</label><input type="text" id="expenseEditDate" placeholder="مثال: 2026/09/15" disabled></div>
+          <div class="admin-field"><label>الوصف الجديد</label><input type="text" id="expenseEditDetails" disabled></div>
+          <div class="admin-field"><label>المبلغ الجديد (ريال)</label><input type="number" id="expenseEditAmount" min="0.01" step="0.01" disabled></div>
+          <div class="admin-note">التاريخ والوصف والمبلغ الأصليون يُستخدَمون لتحديد المصروف بدقة — اترك أي حقل كما هو إن لم ترد تغييره.</div>
+          <div class="admin-actions">
+            <button class="admin-btn" id="editExpenseBtn" disabled>حفظ التعديل</button>
+            <button class="admin-btn danger" id="deleteExpenseBtn" disabled>حذف المصروف</button>
+          </div>
+          <div id="expenseMsg"></div>
+        </div>
+
         <div class="admin-section" data-section="subscriptionAmount">
           <div class="admin-field">
             <label>قيمة الاشتراك الشهري لكل عضو (ريال)</label>
@@ -1545,6 +1576,9 @@ function openAdminPanel() {
   document.getElementById('setStatusBtn').addEventListener('click', handleSetMemberStatus);
   document.getElementById('delTransferBtn').addEventListener('click', handleDeleteTransfer);
   document.getElementById('delTransferMemberSelect').addEventListener('change', handleDelTransferMemberChange);
+  document.getElementById('expensePicker').addEventListener('change', handleExpensePickerChange_);
+  document.getElementById('editExpenseBtn').addEventListener('click', handleEditExpense);
+  document.getElementById('deleteExpenseBtn').addEventListener('click', handleDeleteExpense);
   document.getElementById('setSubscriptionAmountBtn').addEventListener('click', handleSetSubscriptionAmount);
 
   const actionSelect = document.getElementById('adminActionSelect');
@@ -1874,6 +1908,121 @@ async function handleDeleteTransfer() {
       msgEl.innerHTML = `<div class="admin-msg success">${successMsg}</div>`;
       picker.innerHTML = '<option value="">— اختر عضوًا أولاً —</option>';
       picker.disabled = true;
+      btn.disabled = true;
+      loadData();
+    } else {
+      msgEl.innerHTML = '<div class="admin-msg error">فشل الحذف: ' + escapeHtml(result.error || 'خطأ غير معروف') + '</div>';
+      btn.disabled = false;
+    }
+  } catch (err) {
+    msgEl.innerHTML = '<div class="admin-msg error">تعذّر الاتصال بالسكربت: ' + escapeHtml(err.message) + '</div>';
+    btn.disabled = false;
+  }
+}
+
+function handleExpensePickerChange_() {
+  const picker = document.getElementById('expensePicker');
+  const opt = picker.options[picker.selectedIndex];
+  const dateInput = document.getElementById('expenseEditDate');
+  const detailsInput = document.getElementById('expenseEditDetails');
+  const amountInput = document.getElementById('expenseEditAmount');
+  const editBtn = document.getElementById('editExpenseBtn');
+  const delBtn = document.getElementById('deleteExpenseBtn');
+  const msgEl = document.getElementById('expenseMsg');
+  msgEl.innerHTML = '';
+  const has = !!(opt && opt.value !== '');
+  [dateInput, detailsInput, amountInput].forEach(el => { el.disabled = !has; });
+  editBtn.disabled = !has;
+  delBtn.disabled = !has;
+  if (has) {
+    dateInput.value = opt.dataset.date || '';
+    detailsInput.value = opt.dataset.desc || '';
+    amountInput.value = opt.dataset.amount || '';
+  } else {
+    dateInput.value = ''; detailsInput.value = ''; amountInput.value = '';
+  }
+}
+
+function currentExpensePickerOriginal_() {
+  const picker = document.getElementById('expensePicker');
+  const opt = picker.options[picker.selectedIndex];
+  return opt ? { date: opt.dataset.date, details: opt.dataset.desc, amount: opt.dataset.amount } : null;
+}
+
+async function handleEditExpense() {
+  const msgEl = document.getElementById('expenseMsg');
+  if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً (أعلى النموذج).</div>'; return; }
+  if (isAdminKeyCachedInvalid_()) { msgEl.innerHTML = ADMIN_KEY_CACHED_INVALID_MSG; return; }
+  const original = currentExpensePickerOriginal_();
+  if (!original) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء اختيار مصروف.</div>'; return; }
+  const newDate = document.getElementById('expenseEditDate').value.trim();
+  const newDetails = document.getElementById('expenseEditDetails').value.trim();
+  const newAmount = document.getElementById('expenseEditAmount').value;
+  if (!confirm(`هل أنت متأكد من تعديل هذا المصروف؟\n\nمن: ${original.date} — ${original.details} — ${fmt(original.amount)} ريال\nإلى: ${newDate} — ${newDetails} — ${fmt(newAmount)} ريال`)) return;
+
+  const btn = document.getElementById('editExpenseBtn');
+  btn.disabled = true;
+  msgEl.innerHTML = '<div class="admin-msg">جاري الحفظ...</div>';
+  try {
+    const payload = {
+      action: 'editExpense', adminKey: adminKeyValue,
+      originalDate: original.date, originalAmount: original.amount, originalDetails: original.details,
+      date: newDate, details: newDetails, amount: newAmount
+    };
+    const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+    const result = await resp.json();
+    recordAdminKeyOutcome_(result);
+    if (result.success) {
+      let successMsg = 'تم تعديل المصروف بنجاح.';
+      if (result.note) successMsg += ` <br><span style="color:var(--late);">${escapeHtml(result.note)}</span>`;
+      msgEl.innerHTML = `<div class="admin-msg success">${successMsg}</div>`;
+      // نفس سبب إعادة الضبط بعد الحذف: القيم "الأصلية" المحفوظة في الخيار
+      // المختار أصبحت قديمة بعد نجاح التعديل، فتعديل ثانٍ فوري بلا إعادة
+      // فتح اللوحة سيفشل بخطأ "لم يتم العثور على المصروف" لأنها لم تعد تطابق.
+      document.getElementById('expensePicker').innerHTML = '<option value="">— أعد فتح اللوحة لتحديث القائمة —</option>';
+      document.getElementById('expensePicker').disabled = true;
+      ['expenseEditDate', 'expenseEditDetails', 'expenseEditAmount'].forEach(id => { const el = document.getElementById(id); el.value = ''; el.disabled = true; });
+      btn.disabled = true;
+      document.getElementById('deleteExpenseBtn').disabled = true;
+      loadData();
+    } else {
+      msgEl.innerHTML = '<div class="admin-msg error">فشل التعديل: ' + escapeHtml(result.error || 'خطأ غير معروف') + '</div>';
+      btn.disabled = false;
+    }
+  } catch (err) {
+    msgEl.innerHTML = '<div class="admin-msg error">تعذّر الاتصال بالسكربت: ' + escapeHtml(err.message) + '</div>';
+    btn.disabled = false;
+  }
+}
+
+async function handleDeleteExpense() {
+  const msgEl = document.getElementById('expenseMsg');
+  if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً (أعلى النموذج).</div>'; return; }
+  if (isAdminKeyCachedInvalid_()) { msgEl.innerHTML = ADMIN_KEY_CACHED_INVALID_MSG; return; }
+  const original = currentExpensePickerOriginal_();
+  if (!original) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء اختيار مصروف.</div>'; return; }
+  if (!confirm(`هل أنت متأكد من حذف هذا المصروف؟\n\n${original.date} — ${original.details} — ${fmt(original.amount)} ريال\n\nهذا الإجراء لا يمكن التراجع عنه من الموقع.`)) return;
+
+  const btn = document.getElementById('deleteExpenseBtn');
+  btn.disabled = true;
+  msgEl.innerHTML = '<div class="admin-msg">جاري الحذف...</div>';
+  try {
+    const payload = { action: 'deleteExpense', adminKey: adminKeyValue, date: original.date, amount: original.amount, details: original.details };
+    const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
+    const result = await resp.json();
+    recordAdminKeyOutcome_(result);
+    if (result.success) {
+      let successMsg = 'تم حذف المصروف بنجاح.';
+      if (result.note) successMsg += ` <br><span style="color:var(--late);">${escapeHtml(result.note)}</span>`;
+      msgEl.innerHTML = `<div class="admin-msg success">${successMsg}</div>`;
+      // قائمة المصروفات المعروضة هنا محمَّلة مسبقًا ولن تتحدّث تلقائيًا بعد
+      // الحذف ضمن هذه الجلسة (بخلاف بيانات لوحة التحكم الأخرى)، فنُبقيها
+      // معطَّلة بدل ترك خيار محذوف قابلًا للاختيار خطأً — إعادة فتح اللوحة
+      // تجلب القائمة محدَّثة.
+      document.getElementById('expensePicker').innerHTML = '<option value="">— أعد فتح اللوحة لتحديث القائمة —</option>';
+      document.getElementById('expensePicker').disabled = true;
+      ['expenseEditDate', 'expenseEditDetails', 'expenseEditAmount'].forEach(id => { const el = document.getElementById(id); el.value = ''; el.disabled = true; });
+      document.getElementById('editExpenseBtn').disabled = true;
       btn.disabled = true;
       loadData();
     } else {
