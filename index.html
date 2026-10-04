@@ -53,6 +53,8 @@
   --pending-dim: rgba(238,174,75,0.16);
   --new-member: #6bb6ff;
   --new-member-dim: rgba(107,182,255,0.16);
+  --awaiting: #b49cf0;
+  --awaiting-dim: rgba(180,156,240,0.16);
   --shadow-card: 0 20px 50px rgba(0,0,0,0.35);
   --scrim: rgba(4,10,8,0.6);
 }
@@ -80,6 +82,8 @@
   --pending-dim: rgba(185,121,30,0.10);
   --new-member: #1a73c4;
   --new-member-dim: rgba(26,115,196,0.10);
+  --awaiting: #6f4fc4;
+  --awaiting-dim: rgba(111,79,196,0.10);
   --shadow-card: 0 16px 40px rgba(18,33,28,0.10);
   --scrim: rgba(18,33,28,0.35);
 }
@@ -237,6 +241,7 @@ body.section-expenses { background: var(--bg-expenses); }
 .stat-cell.late .dot { background: var(--late); }
 .stat-cell.pending .dot { background: var(--pending); }
 .stat-cell.new .dot { background: var(--new-member); }
+.stat-cell.awaiting .dot { background: var(--awaiting); }
 .stat-cell .num { font-size: 27px; font-weight: 900; color: var(--text-1); }
 .stat-cell .label { font-size: var(--fs-tiny); color: var(--text-2); margin-top: 4px; font-weight: 700; }
 
@@ -275,6 +280,7 @@ section { margin-top: var(--sp-7); scroll-margin-top: var(--sp-5); }
 .pill.late { background: var(--late-dim); color: var(--late); }
 .pill.pending { background: var(--pending-dim); color: var(--pending); }
 .pill.new { background: var(--new-member-dim); color: var(--new-member); }
+.pill.awaiting { background: var(--awaiting-dim); color: var(--awaiting); }
 .pill .pdot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
 .late-list { display: flex; flex-direction: column; gap: 10px; }
@@ -643,12 +649,12 @@ async function loadData() {
 }
 
 function fmt(num) { return Number(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function statusLabel(status) { return status === 'ok' ? 'منتظم' : (status === 'pending' ? 'معلق' : (status === 'new' ? 'عضو جديد' : 'متأخر')); }
-function statusIcon(status) { return status === 'ok' ? ICONS.checkCircle : (status === 'pending' ? ICONS.alertCircle : (status === 'new' ? ICONS.info : ICONS.alertTriangle)); }
+function statusLabel(status) { return status === 'ok' ? 'منتظم' : (status === 'pending' ? 'معلق' : (status === 'new' ? 'عضو جديد' : (status === 'awaiting' ? 'بانتظار السداد' : 'متأخر'))); }
+function statusIcon(status) { return status === 'ok' ? ICONS.checkCircle : (status === 'pending' ? ICONS.alertCircle : ((status === 'new' || status === 'awaiting') ? ICONS.info : ICONS.alertTriangle)); }
 
 function memberRowHtml(m, idx, animated) {
   const cascadeAttrs = animated ? ` class="row-item cascade-item" data-cascade-idx="${idx}"` : ' class="row-item"';
-  const statusClass = m.status === 'ok' ? 'ok' : (m.status === 'pending' ? 'pending' : (m.status === 'new' ? 'new' : 'late'));
+  const statusClass = m.status === 'ok' ? 'ok' : (m.status === 'pending' ? 'pending' : (m.status === 'new' ? 'new' : (m.status === 'awaiting' ? 'awaiting' : 'late')));
   return `
     <div${cascadeAttrs}>
       <div class="row-name">${escapeHtml(m.name)}</div>
@@ -740,6 +746,8 @@ function renderApp(d) {
   statsCells.push(`<div class="stat-cell late"><div class="dot"></div><div class="num count-num" data-count="${d.lateMembers.length}">0</div><div class="label">متأخر</div></div>`);
   const hasPending = (d.pendingCount || 0) > 0;
   const hasNew = (d.newCount || 0) > 0;
+  const hasAwaiting = (d.awaitingCount || 0) > 0;
+  if (hasAwaiting) statsCells.push(`<div class="stat-cell awaiting"><div class="dot"></div><div class="num count-num" data-count="${d.awaitingCount}">0</div><div class="label">بانتظار السداد</div></div>`);
   if (hasPending) statsCells.push(`<div class="stat-cell pending"><div class="dot"></div><div class="num count-num" data-count="${d.pendingCount}">0</div><div class="label">معلق</div></div>`);
   if (hasNew) statsCells.push(`<div class="stat-cell new"><div class="dot"></div><div class="num count-num" data-count="${d.newCount}">0</div><div class="label">عضو جديد</div></div>`);
   // شبكة البطاقات تتكيّف مع العدد الفعلي: عمودان لو كانت 2 أو 4 بطاقات
