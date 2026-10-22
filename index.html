@@ -220,6 +220,72 @@ body.section-expenses { background: var(--bg-expenses); }
 .bank-card-trigger:hover { background: var(--gold-dim); transform: translateY(-1px); }
 .bank-card-trigger svg { width: 17px; height: 17px; }
 
+
+/* =========================================================================
+   اللائحة المالية (نافذة سفلية)
+   ========================================================================= */
+.bylaws-trigger {
+  position: relative; width: 100%; margin-top: var(--sp-4);
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--gold-dim); border: 1px solid var(--border-strong); color: var(--gold);
+  font-family: inherit; font-weight: 800; font-size: 14.5px;
+  padding: 13px 18px; border-radius: var(--r-md); cursor: pointer;
+  transition: transform .2s var(--ease-spring), border-color .2s ease;
+}
+.bylaws-trigger:hover { transform: translateY(-1px); border-color: var(--gold); }
+.bylaws-trigger svg { width: 17px; height: 17px; }
+
+.bylaws-overlay { position: fixed; inset: 0; z-index: 1000; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; }
+.bylaws-sheet {
+  width: 100%; max-width: 600px; height: 92vh; height: 92dvh;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border); border-bottom: 0;
+  border-radius: var(--r-xl) var(--r-xl) 0 0;
+  animation: bylawsIn .38s var(--ease-spring) forwards;
+}
+@keyframes bylawsIn { from { opacity: 0; transform: translateY(36px); } to { opacity: 1; transform: translateY(0); } }
+.bylaws-head { padding: 18px 20px 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.bylaws-head-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.bylaws-kicker { font-size: var(--fs-tiny); font-weight: 800; color: var(--gold); letter-spacing: .4px; }
+.bylaws-title { font-size: 19px; font-weight: 900; color: var(--text-1); margin-top: 2px; line-height: 1.35; }
+.bylaws-close {
+  flex: 0 0 auto; width: 42px; height: 42px; border-radius: 50%; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2);
+}
+.bylaws-close svg { width: 17px; height: 17px; }
+.bylaws-chips { display: flex; gap: 8px; overflow-x: auto; padding: 12px 0 2px; scrollbar-width: none; }
+.bylaws-chips::-webkit-scrollbar { display: none; }
+.bylaws-chip {
+  flex: 0 0 auto; font-family: inherit; font-size: 12.5px; font-weight: 700; white-space: nowrap;
+  padding: 8px 14px; border-radius: var(--r-full); cursor: pointer;
+  background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2);
+}
+.bylaws-chip:hover { color: var(--gold); border-color: var(--border-strong); }
+.bylaws-body { flex: 1; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 4px 20px calc(32px + env(safe-area-inset-bottom,0px)); }
+.bylaws-chapter { margin-top: 24px; scroll-margin-top: 8px; }
+.bylaws-chapter-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.bylaws-chapter-bar { width: 4px; height: 20px; border-radius: 2px; background: var(--gold); flex: 0 0 auto; }
+.bylaws-chapter-head h3 { font-size: 16px; font-weight: 900; color: var(--text-1); }
+.bylaws-article { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 16px; margin-bottom: 12px; }
+.bylaws-article-tag { font-size: var(--fs-tiny); font-weight: 800; color: var(--gold); letter-spacing: .3px; }
+.bylaws-article-title { font-size: 15.5px; font-weight: 800; color: var(--text-1); margin: 2px 0 12px; }
+.bylaws-text { font-size: 14px; line-height: 1.95; color: var(--text-1); }
+.bylaws-lead { font-size: 14px; line-height: 1.9; color: var(--text-2); margin-bottom: 4px; font-weight: 700; }
+.bylaws-facts { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.bylaws-fact { flex: 1 1 130px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); padding: 10px 12px; }
+.bylaws-fact-value { font-size: 18px; font-weight: 900; color: var(--gold); line-height: 1.3; }
+.bylaws-fact-label { font-size: var(--fs-tiny); font-weight: 700; color: var(--text-2); margin-top: 2px; }
+.bylaws-list { list-style: none; margin: 0; padding: 0; counter-reset: bylaw; }
+.bylaws-list li { counter-increment: bylaw; display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; font-size: 14px; line-height: 1.9; color: var(--text-1); }
+.bylaws-list li + li { border-top: 1px dashed var(--border); }
+.bylaws-list li::before {
+  content: counter(bylaw); flex: 0 0 24px; height: 24px; margin-top: 4px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--gold-dim); color: var(--gold); font-weight: 800; font-size: 12px;
+}
+.bylaws-list li b { font-weight: 800; color: var(--text-1); }
+
 .last-update { margin-top: var(--sp-4); padding: var(--sp-4); border-radius: var(--r-md); background: var(--surface-2); text-align: center; position: relative; }
 .sync-status { color: var(--ok); font-size: var(--fs-tiny); font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; justify-content: center; gap: 6px; }
 .sync-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-dim); animation: pulseSync 2s infinite; }
@@ -514,6 +580,7 @@ footer { text-align: center; padding: var(--sp-6) var(--sp-5) var(--sp-4); font-
 <button id="adminTriggerBtn" class="fab" aria-label="لوحة التحكم" title="لوحة التحكم"></button>
 <div id="adminMount"></div>
 <div id="bankCardMount"></div>
+<div id="bylawsMount"></div>
 
 <script>
 /* =========================================================================
@@ -523,6 +590,7 @@ footer { text-align: center; padding: var(--sp-6) var(--sp-5) var(--sp-4); font-
 const ICONS = {
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
   bank: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="21" x2="21" y2="21"/><line x1="5" y1="21" x2="5" y2="10"/><line x1="19" y1="21" x2="19" y2="10"/><line x1="9" y1="21" x2="9" y2="10"/><line x1="15" y1="21" x2="15" y2="10"/><polygon points="12 3 3 8 21 8"/></svg>',
+  scroll: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>',
   info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="11.5"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
   alertTriangle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
@@ -838,6 +906,7 @@ function renderApp(d) {
         <div class="update-date">${escapeHtml(d.lastUpdateDate)}</div>
         <div class="update-time">${escapeHtml(d.lastUpdateTime)}</div>
       </div>
+      <button class="bylaws-trigger" id="bylawsTriggerBtn" type="button">${ICONS.scroll}<span>اللائحة المالية للصندوق</span></button>
       <button class="bank-card-trigger" id="bankCardTriggerBtn" type="button">${ICONS.bank}<span>بيانات الحساب البنكي</span></button>
     </div>
 
@@ -865,8 +934,66 @@ function renderApp(d) {
   initTabbar();
   initInfoTooltip();
   initSectionBackground();
+  document.getElementById('bylawsTriggerBtn').addEventListener('click', openBylaws);
   document.getElementById('bankCardTriggerBtn').addEventListener('click', openBankCard);
   if (isFirstRender) requestAnimationFrame(() => window.scrollTo(0, 0));
+}
+
+/* ===== اللائحة المالية ===== */
+const BYLAWS_TITLE = 'اللائحة المالية لصندوق صلة وإحسان العائلي';
+const BYLAWS = [{"n": "الفصل الأول: تعريفات عامة", "chip": "تعريفات", "articles": [{"tag": "المادة الأولى", "title": "تعريفات", "terms": [["السنة المالية", "تبدأ من أول دورة مالية تالية لتاريخ إقرار الأعضاء لهذه اللائحة، وتتجدد سنوياً من نفس التاريخ."], ["العضو", "كل شخص مشترك رسمياً في الصندوق. ويلتزم كل من ينضم إلى الصندوق لاحقاً بذات الحقوق والواجبات المقررة للأعضاء الحاليين."], ["المستفيد", "من يُصرف له الدعم فعلياً عند تحقق إحدى الحالات المشمولة بهذه اللائحة، سواء كان عضواً في الصندوق أو أحد أفراد أسرته."], ["الإدارة", "الجهة المسؤولة عن تسيير شؤون الصندوق، وتتكون من: رئيس الصندوق، ونائب الرئيس، وأمين الصندوق."]]}]}, {"n": "الفصل الثاني: الاشتراكات", "chip": "الاشتراكات", "articles": [{"tag": "المادة الثانية", "title": "الاشتراكات", "facts": [["150 ريال", "اشتراك شهري"]], "text": "يلتزم كل عضو من أعضاء الصندوق بدفع اشتراك شهري قدره 150 (مائة وخمسون) ريالاً، دون تفريق بين الأعضاء."}]}, {"n": "الفصل الثالث: بنود الدعم", "chip": "بنود الدعم", "articles": [{"tag": "المادة الثالثة", "title": "دعم زواج أبناء أسرة المطير", "facts": [["حالة واحدة", "الحد الأقصى في السنة المالية"], ["1,000 ريال", "عن كل عضو من أعضاء الصندوق"]], "items": ["يبدأ تفعيل هذا الدعم بعد مرور سنة واحدة من بداية السنة المالية الأولى للصندوق بموجب هذه اللائحة.", "يخصص الصندوق دعماً لحالة واحدة كحد أقصى من زواج أبناء أسرة المطير في السنة المالية الواحدة.", "تبلغ قيمة الدعم 1,000 (ألف) ريال عن كل عضو من أعضاء الصندوق.", "تكون الأولوية للمستفيد الذي لم يسبق له الزواج.", "في حال تعدد طلبات الزواج خلال السنة المالية الواحدة، تكون الأولوية لمن كان تاريخ زواجه أقرب، وتُعالَج الحالات اللاحقة عبر مساهمات مباشرة بين الأعضاء خارج ميزانية الصندوق."]}, {"tag": "المادة الرابعة", "title": "دعم زواج أبناء أسرة المسعر", "facts": [["4 حالات", "كحد أقصى في السنة المالية"], ["200 ريال", "عن كل عضو من أعضاء الصندوق"]], "items": ["يدعم الصندوق ما لا يزيد على أربع حالات زواج من أسرة المسعر في السنة المالية الواحدة.", "تُحتسب قيمة كل حالة بواقع 200 ريال عن كل عضو من أعضاء الصندوق.", "في حال تجاوز عدد الحالات الحد الأقصى المعتمد، تُعالَج الحالات الإضافية عبر مساهمات مباشرة بين الأعضاء خارج ميزانية الصندوق."]}, {"tag": "المادة الخامسة", "title": "دعم الديات", "facts": [["حالة واحدة", "كحد أقصى في السنة المالية"], ["5,000 ريال", "مبلغ ثابت"]], "items": ["يدعم الصندوق حالة دية واحدة كحد أقصى في السنة المالية الواحدة.", "تبلغ قيمة الدعم مبلغاً ثابتاً قدره 5,000 (خمسة آلاف) ريال.", "في حال وجود أكثر من حالة خلال السنة المالية نفسها، تُعالَج الحالات الإضافية عبر مساهمات مباشرة بين الأعضاء خارج ميزانية الصندوق."]}]}, {"n": "الفصل الرابع: الضوابط المالية", "chip": "الضوابط المالية", "articles": [{"tag": "المادة السادسة", "title": "أولوية الصرف", "text": "عند تزاحم طلبات الصرف، تُعتمد الأولوية وفق الترتيب التالي: أولاً دعم زواج أبناء أسرة المطير، ثم دعم زواج أبناء أسرة المسعر، ثم دعم الديات."}, {"tag": "المادة السابعة", "title": "حماية الاحتياطي المالي", "facts": [["10,000 ريال", "الحد الأدنى للاحتياطي المالي"]], "text": "للإدارة الحق في تأجيل صرف أي حالة أو الاعتذار عنها إذا كان تنفيذها سيؤدي إلى النزول عن الحد الأدنى المعتمد للاحتياطي المالي. ويُحدَّد الحد الأدنى للاحتياطي المالي للصندوق بمبلغ 10,000 (عشرة آلاف) ريال، لا يجوز النزول عنه إلا في الحالات الطارئة."}, {"tag": "المادة الثامنة", "title": "المبالغ غير المصروفة", "text": "في حال عدم وجود طلبات مستوفية للشروط لأي من بنود الدعم خلال السنة المالية، يُضاف المبلغ المخصص لذلك البند إلى الاحتياطي المالي للصندوق، ولا يُضاف إلى قيمة الدعم المقررة لأي حالة تُصرف في السنة التالية."}, {"tag": "المادة التاسعة", "title": "الالتزام بسداد الاشتراكات", "items": ["لا يجوز صرف أي مبلغ من مبالغ الدعم بجميع أشكاله المنصوص عليها في هذه اللائحة، إلا بعد سداد جميع الأعضاء لما عليهم من اشتراكات مستحقة.", "يُعتبر العضو متأخراً عن السداد إذا تأخر عن سداد اشتراك دورة مالية واحدة (شهر واحد) دون سداد."]}]}, {"n": "الفصل الخامس: الإدارة والتقارير", "chip": "الإدارة والتقارير", "articles": [{"tag": "المادة العاشرة", "title": "مهام الإدارة", "lead": "تتولى الإدارة:", "items": ["متابعة الاشتراكات والتحصيل.", "اعتماد طلبات الصرف.", "إعداد التقارير المالية.", "المحافظة على أموال الصندوق.", "تنظيم سجلات الأعضاء والمستفيدين."]}, {"tag": "المادة الحادية عشرة", "title": "الحسابات والتقارير", "items": ["تُحفظ أموال الصندوق في حساب بنكي مستقل.", "تلتزم الإدارة بإعداد تقرير مالي شهري يوضح: الإيرادات، المصروفات، الرصيد المالي، قيمة الاحتياطي المالي.", "يحق لأعضاء الصندوق الاطلاع على الوضع المالي بشكل لحظي عبر الموقع الإلكتروني الخاص بالصندوق."]}]}, {"n": "الفصل السادس: أحكام عامة", "chip": "أحكام عامة", "articles": [{"tag": "المادة الثانية عشرة", "title": "تعديل اللائحة", "text": "يجوز تعديل هذه اللائحة بقرار من الإدارة وموافقة أغلبية أعضاء الصندوق."}, {"tag": "المادة الثالثة عشرة", "title": "أحكام ختامية", "items": ["يُقرّ أعضاء الصندوق هذه اللائحة بتصويتهم عليها، ويبدأ نفاذها الفعلي من بداية أول دورة مالية تالية لتاريخ الإقرار.", "كل ما لم يرد به نص في هذه اللائحة يعود تقديره لأغلبية أعضاء الصندوق بما يحقق مصلحة الصندوق واستدامته."]}]}];
+
+function bylawsArticleHtml(a) {
+  let h = '<div class="bylaws-article">'
+    + '<div class="bylaws-article-tag">' + escapeHtml(a.tag) + '</div>'
+    + '<div class="bylaws-article-title">' + escapeHtml(a.title) + '</div>';
+  if (a.facts) {
+    h += '<div class="bylaws-facts">' + a.facts.map(f =>
+      '<div class="bylaws-fact"><div class="bylaws-fact-value">' + escapeHtml(f[0]) + '</div><div class="bylaws-fact-label">' + escapeHtml(f[1]) + '</div></div>'
+    ).join('') + '</div>';
+  }
+  if (a.lead) h += '<div class="bylaws-lead">' + escapeHtml(a.lead) + '</div>';
+  if (a.text) h += '<div class="bylaws-text">' + escapeHtml(a.text) + '</div>';
+  if (a.terms) h += '<ol class="bylaws-list">' + a.terms.map(t => '<li><span><b>' + escapeHtml(t[0]) + ':</b> ' + escapeHtml(t[1]) + '</span></li>').join('') + '</ol>';
+  if (a.items) h += '<ol class="bylaws-list">' + a.items.map(t => '<li><span>' + escapeHtml(t) + '</span></li>').join('') + '</ol>';
+  return h + '</div>';
+}
+
+function openBylaws() {
+  const mount = document.getElementById('bylawsMount');
+  const chips = BYLAWS.map((c, i) => '<button class="bylaws-chip" type="button" data-target="bylawsCh' + i + '">' + escapeHtml(c.chip) + '</button>').join('');
+  const chapters = BYLAWS.map((c, i) =>
+    '<section class="bylaws-chapter" id="bylawsCh' + i + '">'
+    + '<div class="bylaws-chapter-head"><span class="bylaws-chapter-bar"></span><h3>' + escapeHtml(c.n) + '</h3></div>'
+    + c.articles.map(bylawsArticleHtml).join('')
+    + '</section>'
+  ).join('');
+  mount.innerHTML =
+    '<div class="bylaws-overlay" id="bylawsOverlay">'
+    + '<div class="bylaws-sheet" role="dialog" aria-modal="true" aria-label="' + escapeHtml(BYLAWS_TITLE) + '">'
+    + '<div class="bylaws-head">'
+    + '<div class="bylaws-head-top"><div><div class="bylaws-kicker">الدستور المالي</div><div class="bylaws-title">' + escapeHtml(BYLAWS_TITLE) + '</div></div>'
+    + '<button class="bylaws-close" id="bylawsCloseBtn" type="button" aria-label="إغلاق">' + ICONS.close + '</button></div>'
+    + '<div class="bylaws-chips" id="bylawsChips">' + chips + '</div>'
+    + '</div>'
+    + '<div class="bylaws-body" id="bylawsBody">' + chapters + '</div>'
+    + '</div></div>';
+  document.body.style.overflow = 'hidden';
+  bindOverlayClose('bylawsOverlay', 'bylawsCloseBtn', closeBylaws);
+  document.getElementById('bylawsChips').addEventListener('click', (e) => {
+    const btn = e.target.closest('.bylaws-chip');
+    if (!btn) return;
+    const el = document.getElementById(btn.getAttribute('data-target'));
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  document.addEventListener('keydown', bylawsEscHandler);
+  document.getElementById('bylawsCloseBtn').focus();
+}
+function bylawsEscHandler(e) { if (e.key === 'Escape') closeBylaws(); }
+function closeBylaws() {
+  document.getElementById('bylawsMount').innerHTML = '';
+  document.body.style.overflow = '';
+  document.removeEventListener('keydown', bylawsEscHandler);
 }
 
 /* ===== بطاقة بيانات الحساب البنكي ===== */
