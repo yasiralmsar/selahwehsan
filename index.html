@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#070f0c">
+<meta name="theme-color" content="#EEF0FA">
 <title>صندوق صلة وإحسان العائلي</title>
 
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
 
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;500;600&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
 
 <style>
 /* =========================================================================
@@ -532,6 +532,142 @@ section { margin-top: var(--sp-7); scroll-margin-top: var(--sp-5); }
 .error-state .retry-btn { background: var(--text-1); color: var(--bg-hero); border: none; padding: 12px 26px; border-radius: 12px; font-weight: 700; font-size: 15px; font-family: inherit; cursor: pointer; min-height: 44px; }
 
 footer { text-align: center; padding: var(--sp-6) var(--sp-5) var(--sp-4); font-size: 13px; color: var(--text-3); font-weight: 500; }
+
+/* =========================================================================
+   SOFT UI v2 — هوية جديدة: لافندر مبهج + نيومورفيزم/زجاج ناعم (2026/10)
+   تُطبَّق فوق القديم بنفس أسماء المتغيرات، فتتبعها لوحة المشرف والنوافذ تلقائيًا.
+   ========================================================================= */
+:root[data-theme="light"]{
+ --bg-hero:#EEF0FA;--bg-members:#EEF0FA;--bg-expenses:#EEF0FA;--surface:#EEF0FA;--surface-2:#E6E9F6;
+ --border:rgba(255,255,255,0.85);--border-strong:rgba(91,63,217,0.28);
+ --text-1:#1E1B4B;--text-2:#5B5F86;--text-3:#636890;
+ --brand:#5B3FD9;--brand-dim:rgba(91,63,217,0.12);--gold:#5B3FD9;--gold-dim:rgba(91,63,217,0.12);
+ --ok:#0B7A62;--ok-dim:#D5F5EC;--late:#B22D27;--late-dim:#FFE0DE;--pending:#8A5A00;--pending-dim:#FFEFCC;
+ --new-member:#1A64B8;--new-member-dim:#DCEEFF;--awaiting:#5B3FD9;--awaiting-dim:#E6DFFF;
+ --shadow-card:0 16px 40px rgba(122,132,190,0.30);--scrim:rgba(30,27,75,0.38);
+ --sh-dk:rgba(122,132,190,0.34);--sh-lt:#FFFFFF;--blob1:rgba(123,92,250,0.30);--blob2:rgba(255,111,174,0.22);--glass:rgba(255,255,255,0.62);
+ --c1:#5B3FD9;--c2:#0B7A62;--c3:#C0266D;
+}
+:root[data-theme="dark"]{
+ --bg-hero:#0E1126;--bg-members:#0E1126;--bg-expenses:#0E1126;--surface:#161A36;--surface-2:#1D2244;
+ --border:rgba(255,255,255,0.08);--border-strong:rgba(183,166,255,0.32);
+ --text-1:#F1F0FF;--text-2:#B0B4D6;--text-3:#9297BF;
+ --brand:#B7A6FF;--brand-dim:rgba(183,166,255,0.16);--gold:#B7A6FF;--gold-dim:rgba(183,166,255,0.16);
+ --ok:#46E0A0;--ok-dim:rgba(70,224,160,0.14);--late:#FF7A7A;--late-dim:rgba(255,122,122,0.14);--pending:#FFB84D;--pending-dim:rgba(255,184,77,0.14);
+ --new-member:#6CC4FF;--new-member-dim:rgba(108,196,255,0.14);--awaiting:#B7A6FF;--awaiting-dim:rgba(183,166,255,0.16);
+ --shadow-card:0 20px 50px rgba(0,0,0,0.45);--scrim:rgba(5,7,20,0.62);
+ --sh-dk:rgba(0,0,0,0.55);--sh-lt:rgba(255,255,255,0.035);--blob1:rgba(123,92,250,0.22);--blob2:rgba(255,111,174,0.10);--glass:rgba(30,34,68,0.72);
+ --c1:#B7A6FF;--c2:#46E0A0;--c3:#FF8FC0;
+}
+html,body{background:var(--bg-hero)!important;transition:none!important}
+body{font-family:'Readex Pro','Tajawal',system-ui,sans-serif;color:var(--text-1);position:relative}
+button,input{font-family:inherit}
+body::before,body::after{content:"";position:fixed;border-radius:50%;filter:blur(56px);pointer-events:none;z-index:0}
+body::before{top:-80px;right:-60px;width:260px;height:260px;background:var(--blob1)}
+body::after{top:120px;left:-100px;width:220px;height:220px;background:var(--blob2)}
+.topbar,main.container,footer{position:relative;z-index:1}
+.topbar{position:relative!important;background:transparent!important;border:0!important;box-shadow:none!important;backdrop-filter:none!important}
+.topbar-inner{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand h1{font-size:20px!important;font-weight:600!important;line-height:1.3;color:var(--text-1)}
+.brand p{font-size:12px!important;color:var(--text-2)!important;margin-top:2px}
+.top-actions{display:flex;gap:10px;align-items:center}
+.icon-btn,.top-actions .fab{width:46px!important;height:46px!important;border-radius:23px!important;display:flex!important;align-items:center;justify-content:center;color:var(--text-1)!important;background:var(--surface)!important;border:1px solid var(--border)!important;box-shadow:6px 6px 14px var(--sh-dk),-6px -6px 14px var(--sh-lt)!important;cursor:pointer;padding:0!important}
+.top-actions .fab{position:relative!important;inset:auto!important;transform:none!important;margin:0!important;animation:none!important}
+.icon-btn svg,.top-actions .fab svg{width:20px;height:20px}
+main.container{max-width:560px;margin:0 auto;padding:6px 22px 150px}
+.sf-panel{display:none}
+.sf-panel.active{display:block;animation:sfIn .35s var(--ease-smooth)}
+@keyframes sfIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.sf-head{padding:14px 2px 6px}
+.sf-head h2{font-size:26px;font-weight:600;line-height:1.3;color:var(--text-1)}
+.sf-head p{font-size:12.5px;color:var(--text-2);margin-top:2px}
+.sf-card{background:var(--surface);border:1px solid var(--border);border-radius:26px;box-shadow:10px 10px 24px var(--sh-dk),-10px -10px 24px var(--sh-lt);padding:18px;margin-top:22px}
+.sf-row2{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.sf-t{font-size:15px;font-weight:500;color:var(--text-1)}
+.sf-mu{font-size:12px;color:var(--text-2)}
+.sf-hero{position:relative;overflow:hidden;border-radius:30px;background:#6A4DF4;color:#fff;padding:24px;min-height:150px;margin-top:10px;box-shadow:0 18px 34px rgba(106,77,244,0.38)}
+.sf-hero::before{content:"";position:absolute;width:210px;height:210px;border-radius:50%;background:rgba(255,255,255,0.11);left:-60px;bottom:-100px}
+.sf-hero::after{content:"";position:absolute;width:150px;height:150px;border-radius:50%;background:rgba(255,255,255,0.09);right:-40px;top:-60px}
+.sf-hero>*{position:relative;z-index:1}
+.sf-hero .lbl{font-size:13px;opacity:.92}
+.sf-hero .amt{display:flex;align-items:baseline;gap:8px;margin-top:6px}
+.sf-hero .num{font-size:clamp(44px,12vw,58px);font-weight:600;line-height:1.15}
+.sf-hero .unit{font-size:16px;opacity:.92}
+.sf-chip{position:absolute!important;top:22px;left:24px;width:48px;height:36px;border-radius:9px;background:rgba(255,255,255,0.22)}
+.sf-chip::before{content:"";position:absolute;top:12px;right:8px;left:8px;height:2px;background:rgba(255,255,255,0.6);box-shadow:0 10px 0 rgba(255,255,255,0.6)}
+.sf-acts{display:flex;gap:12px;margin-top:22px}
+.sf-act{flex:1;display:flex;flex-direction:column;align-items:center;gap:10px;background:none;border:0;color:var(--text-1);font-size:12.5px;font-weight:500;cursor:pointer;padding:0}
+.sf-act .ico{width:64px;height:64px;border-radius:22px;display:flex;align-items:center;justify-content:center;background:var(--surface);border:1px solid var(--border);box-shadow:10px 10px 24px var(--sh-dk),-10px -10px 24px var(--sh-lt)}
+.sf-act .ico svg{width:26px;height:26px}
+.sf-act .c1{color:var(--c1)}.sf-act .c2{color:var(--c2)}.sf-act .c3{color:var(--c3)}
+.sf-sums{display:flex;gap:14px;margin-top:22px}
+.sf-sum{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:22px;box-shadow:10px 10px 24px var(--sh-dk),-10px -10px 24px var(--sh-lt);padding:14px}
+.sf-sum .v{font-size:19px;font-weight:600;margin-top:2px;color:var(--text-1)}
+.tl{width:44px;height:44px;border-radius:15px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.tl svg{width:22px;height:22px}
+.tl.s36{width:36px;height:36px;border-radius:12px}.tl.s36 svg{width:18px;height:18px}
+.tl.ok{background:var(--ok-dim);color:var(--ok)}.tl.late{background:var(--late-dim);color:var(--late)}.tl.pending{background:var(--pending-dim);color:var(--pending)}.tl.new{background:var(--new-member-dim);color:var(--new-member)}.tl.awaiting{background:var(--awaiting-dim);color:var(--awaiting)}
+.sf-pill{font-size:11.5px;font-weight:500;padding:6px 12px;border-radius:14px;white-space:nowrap}
+.sf-pill.ok{background:var(--ok-dim);color:var(--ok)}.sf-pill.late{background:var(--late-dim);color:var(--late)}.sf-pill.pending{background:var(--pending-dim);color:var(--pending)}.sf-pill.new{background:var(--new-member-dim);color:var(--new-member)}.sf-pill.awaiting{background:var(--awaiting-dim);color:var(--awaiting)}
+.sf-rings{display:flex;justify-content:space-between;margin-top:16px}
+.sf-ring{display:flex;flex-direction:column;align-items:center;gap:8px}
+.sf-well{position:relative;width:58px;height:58px;border-radius:50%;background:var(--surface);box-shadow:inset 5px 5px 11px var(--sh-dk),inset -5px -5px 11px var(--sh-lt)}
+.sf-well svg{display:block}
+.sf-well .pc{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600}
+.sf-legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:16px}
+.sf-legend span{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-2)}
+.sf-legend i{width:10px;height:10px;border-radius:5px;display:inline-block;box-sizing:border-box}
+.sf-track{height:14px;border-radius:7px;padding:3px;box-sizing:border-box;margin-top:14px;background:var(--surface);box-shadow:inset 3px 3px 7px var(--sh-dk),inset -3px -3px 7px var(--sh-lt)}
+.sf-fill{height:8px;border-radius:4px;background:linear-gradient(90deg,#8B6CFF,#4F5BE8);min-width:3%}
+.sf-msg{display:flex;align-items:flex-start;gap:12px;margin-top:22px;font-size:14px;line-height:1.8;color:var(--text-1)}
+.sf-tiles{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:22px}
+.sf-tile{background:var(--surface);border:1px solid var(--border);border-radius:24px;box-shadow:10px 10px 24px var(--sh-dk),-10px -10px 24px var(--sh-lt);padding:14px}
+.sf-tile .n{font-size:30px;font-weight:600;margin-top:12px;line-height:1.1;color:var(--text-1)}
+.sf-tile .l{font-size:12.5px;color:var(--text-2);margin-top:2px}
+.sf-sync{text-align:center;font-size:12px;line-height:1.9;color:var(--text-2);margin-top:26px}
+.sf-sync b{display:block;color:var(--ok);font-weight:500}
+.sf-search{display:flex;align-items:center;gap:10px;height:54px;border-radius:27px;padding:0 20px;margin-top:12px;background:var(--glass);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid var(--border);box-shadow:0 8px 22px var(--sh-dk);color:var(--text-2)}
+.sf-search svg{width:20px;height:20px;flex:0 0 auto}
+.sf-search input{flex:1;border:0;background:transparent;font-size:14px;color:var(--text-1);outline:none;min-width:0}
+.sf-chips{display:flex;gap:10px;overflow-x:auto;padding:16px 2px 8px;scrollbar-width:none}
+.sf-chips::-webkit-scrollbar{display:none}
+.sf-chip-btn{flex:0 0 auto;min-height:46px;padding:0 16px;border-radius:23px;border:1px solid var(--border);background:var(--surface);box-shadow:6px 6px 14px var(--sh-dk),-6px -6px 14px var(--sh-lt);font-size:12.5px;font-weight:500;color:var(--text-1);cursor:pointer}
+.sf-chip-btn.on{background:linear-gradient(135deg,#6A4DF4,#4F5BE8);color:#fff;border-color:transparent}
+.sf-list{margin-top:12px}
+.sf-row{display:flex;align-items:center;gap:12px;padding:14px;margin-bottom:14px;background:var(--surface);border:1px solid var(--border);border-radius:24px;box-shadow:10px 10px 24px var(--sh-dk),-10px -10px 24px var(--sh-lt)}
+.sf-av{width:48px;height:48px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:600;flex:0 0 auto}
+.sf-av.t0{background:var(--awaiting-dim);color:var(--awaiting)}.sf-av.t1{background:var(--ok-dim);color:var(--ok)}.sf-av.t2{background:var(--late-dim);color:var(--late)}.sf-av.t3{background:var(--pending-dim);color:var(--pending)}.sf-av.t4{background:var(--new-member-dim);color:var(--new-member)}
+.sf-rb{flex:1;min-width:0}
+.sf-rn{font-size:15px;font-weight:500;color:var(--text-1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sf-rs{font-size:12px;color:var(--text-2);margin-top:2px}
+.sf-amt{font-size:15px;font-weight:600;color:var(--text-1);white-space:nowrap}
+.sf-donut{display:flex;align-items:center;gap:14px}
+.sf-donut .dn{position:relative;width:150px;height:150px;flex:0 0 auto}
+.sf-donut .ct{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.sf-donut .ct b{font-size:16px;font-weight:600;color:var(--text-1)}
+.sf-lg{flex:1;min-width:0}
+.sf-lg div{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 0;font-size:13px;color:var(--text-1)}
+.sf-lg span{display:flex;align-items:center;gap:8px}
+.sf-lg i{width:10px;height:10px;border-radius:5px;display:inline-block}
+.sf-facts{display:flex;gap:10px;margin-top:14px}
+.sf-fact{flex:1;border-radius:18px;padding:10px 12px;background:var(--awaiting-dim);color:var(--awaiting)}
+.sf-fact:nth-child(2){background:var(--ok-dim);color:var(--ok)}.sf-fact:nth-child(3){background:var(--late-dim);color:var(--late)}
+.sf-fact b{display:block;font-size:16px;font-weight:600}.sf-fact span{font-size:11px}
+.sf-btn{width:100%;min-height:48px;border-radius:24px;margin-top:16px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13.5px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--gold);box-shadow:6px 6px 14px var(--sh-dk),-6px -6px 14px var(--sh-lt)}
+.sf-btn.pri{background:linear-gradient(135deg,#6A4DF4,#4F5BE8);color:#fff;border:0;box-shadow:0 8px 18px rgba(106,77,244,0.35)}
+.sf-iban{direction:ltr;text-align:left;font-size:15px;letter-spacing:.6px;margin-top:6px;border-radius:16px;padding:12px 14px;background:var(--surface);box-shadow:inset 4px 4px 9px var(--sh-dk),inset -4px -4px 9px var(--sh-lt);color:var(--text-1)}
+.sf-switch{width:58px;height:32px;border-radius:16px;position:relative;border:0;cursor:pointer;background:var(--surface);box-shadow:inset 4px 4px 9px var(--sh-dk),inset -4px -4px 9px var(--sh-lt);flex:0 0 auto}
+.sf-switch::after{content:"";position:absolute;top:3px;right:3px;width:26px;height:26px;border-radius:50%;background:var(--surface);box-shadow:3px 3px 7px var(--sh-dk),-2px -2px 6px var(--sh-lt);transition:transform .25s var(--ease-smooth)}
+.sf-switch[aria-checked="true"]{background:#6A4DF4}
+.sf-switch[aria-checked="true"]::after{transform:translateX(-26px);background:#fff}
+.no-results{padding:22px;text-align:center;color:var(--text-2);font-size:14px}
+.tabbar{position:fixed!important;left:14px!important;right:14px!important;bottom:calc(14px + env(safe-area-inset-bottom,0px))!important;width:auto!important;max-width:520px;margin:0 auto!important;border-radius:32px!important;background:var(--glass)!important;backdrop-filter:blur(18px)!important;-webkit-backdrop-filter:blur(18px)!important;border:1px solid var(--border)!important;box-shadow:0 10px 28px var(--sh-dk)!important;padding:7px!important;height:auto!important;z-index:50}
+.tabbar-inner{display:flex!important;gap:6px;max-width:none!important;padding:0!important;margin:0!important}
+.tab-link{flex:1;min-height:54px;border-radius:25px;display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--text-2)!important;font-size:11px;font-weight:500;background:transparent!important;text-decoration:none}
+.tab-link.active{background:linear-gradient(135deg,#6A4DF4,#4F5BE8)!important;color:#fff!important;font-weight:600}
+.tab-link svg{width:22px;height:22px}
+footer{text-align:center;color:var(--text-3)!important;font-size:12px;padding:0 20px 140px!important}
+@media (prefers-reduced-motion: reduce){.reveal,.cascade-item,.sf-panel.active{transition:none!important;animation:none!important;opacity:1!important;transform:none!important}}
 </style>
 </head>
 <body>
@@ -548,11 +684,11 @@ footer { text-align: center; padding: var(--sp-6) var(--sp-5) var(--sp-4); font-
 
 <div id="infoTooltip" class="info-tooltip" hidden>
   <button class="info-tooltip-close" id="infoTooltipClose" type="button" aria-label="إغلاق"></button>
-  <p><strong>منتظم</strong> — لا يوجد على العضو أي دورة سابقة أو حالية غير مُغطاة بحوالاته.</p>
-  <p><strong>بانتظار السداد</strong> — بدأت الدورة الحالية ولم تصل حوالة العضو بعد، لكن ما زال ضمن مهلة السداد المعتادة (حتى نحو يوم 10 من الشهر).</p>
-  <p><strong>متأخر</strong> — مضت دورة واحدة أو أكثر بدون تحويل جديد، وتجاوزت مهلة السداد.</p>
+  <p><strong>منتظم</strong> — لا يوجد على العضو أي شهر مالي سابق أو حالي غير مُغطّى بحوالاته.</p>
+  <p><strong>بانتظار السداد</strong> — بدأ الشهر المالي الحالي ولم تصل حوالة العضو بعد، لكن ما زال ضمن مهلة السداد المعتادة (حتى نحو يوم 10 من الشهر).</p>
+  <p><strong>متأخر</strong> — مضى شهر مالي واحد أو أكثر بدون تحويل جديد، وتجاوزت مهلة السداد.</p>
   <p><strong>معلق</strong> — حالة مؤقتة تُضبط يدويًا من لوحة التحكم (لعذر أو ظرف خاص)، ولا تُحتسب ضمن المتأخرين حتى تُلغى.</p>
-  <p><strong>الدورة</strong> — فترة شهرية تمتد من يوم 24 لكل شهر إلى يوم 23 من الشهر التالي.</p>
+  <p><strong>الشهر المالي</strong> — فترة شهرية تمتد من يوم 24 لكل شهر إلى يوم 23 من الشهر التالي.</p>
 </div>
 <div id="infoTooltipOverlay" class="overlay" hidden></div>
 
@@ -569,11 +705,12 @@ footer { text-align: center; padding: var(--sp-6) var(--sp-5) var(--sp-4); font-
   إدارة صندوق صلة وإحسان العائلي — تُحدَّث البيانات تلقائيًا
 </footer>
 
-<nav class="tabbar" id="tabbar">
+<nav class="tabbar" id="tabbar" aria-label="التنقل الرئيسي">
   <div class="tabbar-inner">
-    <a href="#lateSection" class="tab-link" data-icon="alertTriangle">المتأخرون</a>
-    <a href="#membersSection" class="tab-link" data-icon="users">الأعضاء</a>
-    <a href="#expensesSection" class="tab-link" data-icon="receipt" id="expensesTabLink" style="display:none;">المصروفات</a>
+    <a href="#home" class="tab-link" data-tab="home" data-icon="home">الرئيسية</a>
+    <a href="#members" class="tab-link" data-tab="members" data-icon="users">الأعضاء</a>
+    <a href="#expenses" class="tab-link" data-tab="expenses" data-icon="receipt">المصروفات</a>
+    <a href="#more" class="tab-link" data-tab="more" data-icon="grid">المزيد</a>
   </div>
 </nav>
 
@@ -603,11 +740,32 @@ const ICONS = {
   copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
   refresh: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>'
 ,
-  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>'
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>',
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8M5 10v10h5v-6h4v6h5V10"/></svg>',
+  grid: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6v12M15 6v12"/></svg>',
+  up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+  down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>',
+  rings2: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>',
+  percent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19L19 5M7 7h.01M17 17h.01"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
+  moonO: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>'
 };
 document.getElementById('themeToggleBtn').innerHTML = ICONS.moon;
 document.getElementById('adminTriggerBtn').innerHTML = ICONS.gear;
 document.getElementById('infoTooltipClose').innerHTML = ICONS.close;
+(function placeTopActions(){
+  const inner = document.querySelector('.topbar-inner');
+  const th = document.getElementById('themeToggleBtn');
+  const gear = document.getElementById('adminTriggerBtn');
+  if (!inner || !th || !gear) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'top-actions';
+  inner.appendChild(wrap);
+  wrap.appendChild(gear);
+  wrap.appendChild(th);
+})();
 
 /* =========================================================================
    THEME — يتبع إعداد جهاز الزائر (فاتح/داكن) عند أول زيارة، ثم يبقى أي
@@ -622,7 +780,7 @@ function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   document.getElementById('themeToggleBtn').innerHTML = theme === 'dark' ? ICONS.moon : ICONS.sun;
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', theme === 'dark' ? '#070f0c' : '#f7f5ee');
+  if (meta) meta.setAttribute('content', theme === 'dark' ? '#0E1126' : '#EEF0FA');
 }
 document.getElementById('themeToggleBtn').addEventListener('click', () => {
   const current = document.documentElement.getAttribute('data-theme');
@@ -789,49 +947,118 @@ function fmt(num) { return Number(num).toLocaleString('en-US', { minimumFraction
 function statusLabel(status) { return status === 'ok' ? 'منتظم' : (status === 'pending' ? 'معلق' : (status === 'new' ? 'عضو جديد' : (status === 'awaiting' ? 'بانتظار السداد' : 'متأخر'))); }
 function statusIcon(status) { return status === 'ok' ? ICONS.checkCircle : (status === 'pending' ? ICONS.alertCircle : (status === 'new' ? ICONS.info : (status === 'awaiting' ? ICONS.clock : ICONS.alertTriangle))); }
 
+const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+// false = يُعرض نوع المصروف فقط (مساهمة زواج / دية / رسوم) دون أسماء المستفيدين. true = الوصف كاملًا كما يصل من الشيت.
+const SHOW_EXPENSE_DESCRIPTIONS = false;
+const BYLAW_FACTS = [['150', 'اشتراك شهري'], ['1,000', 'زواج المطير للعضو'], ['5,000', 'دية']];
+
+function arDate(str) {
+  const m = String(str || '').match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
+  if (!m) return escapeHtml(str || '');
+  return Number(m[3]) + ' ' + MONTHS_AR[Number(m[2]) - 1] + ' ' + m[1];
+}
+function fmtShort(n) { n = Number(n) || 0; return n % 1 === 0 ? n.toLocaleString('en-US') : fmt(n); }
+function statusClass(st) { return st === 'ok' ? 'ok' : (st === 'pending' ? 'pending' : (st === 'new' ? 'new' : (st === 'awaiting' ? 'awaiting' : 'late'))); }
+function monthsLate(n) { return n === 1 ? 'متأخر شهرًا واحدًا' : (n === 2 ? 'متأخر شهرين' : 'متأخر ' + n + ' أشهر'); }
+function streakText(n) { return n === 1 ? 'شهر واحد مكتمل' : (n === 2 ? 'شهران متتاليان' : (n <= 10 ? n + ' أشهر متتالية' : n + ' شهرًا متتاليًا')); }
+function clampPct(v) { return Math.max(0, Math.min(100, Number(v) || 0)); }
+
 function memberRowHtml(m, idx, animated) {
-  const cascadeAttrs = animated ? ` class="row-item cascade-item" data-cascade-idx="${idx}"` : ' class="row-item"';
-  const statusClass = m.status === 'ok' ? 'ok' : (m.status === 'pending' ? 'pending' : (m.status === 'new' ? 'new' : (m.status === 'awaiting' ? 'awaiting' : 'late')));
-  return `
-    <div${cascadeAttrs}>
-      <div class="row-name">${escapeHtml(m.name)}</div>
-      <div class="row-end">
-        <span class="pill ${statusClass}"><span class="pdot"></span>${statusLabel(m.status)}</span>
-        <span class="row-amount">${fmt(m.amount)} ﷼</span>
-      </div>
-    </div>
-  `;
+  const cls = statusClass(m.status);
+  const cascade = animated ? ` cascade-item" data-cascade-idx="${idx}` : '';
+  const initial = escapeHtml(String(m.name || '').trim().charAt(0));
+  const cyc = Number(m.cyclesLate || m.lateCycles || 0);
+  const sub = fmt(m.amount) + ' ﷼' + (m.status === 'late' && cyc > 0 ? ' · ' + monthsLate(cyc) : '');
+  return `<div class="sf-row${cascade}"><span class="sf-av t${idx % 5}">${initial}</span><div class="sf-rb"><div class="sf-rn">${escapeHtml(m.name)}</div><div class="sf-rs">${sub}</div></div><span class="sf-pill ${cls}">${statusLabel(m.status)}</span></div>`;
 }
 
-/* =========================================================================
-   COMPLETION CHART (العنصر المميّز) — دائرة اكتمال لكل من آخر 6 أشهر.
-   يعتمد على d.monthlyCompletion من الـ API (مصفوفة {label, pct, complete}).
-   كل الدوائر بنفس تنسيق الحلقة (conic-gradient بنسبة داخلها) — حلقة خضراء
-   ممتلئة (100%) للشهر المكتمل، وحلقة حمراء بنسبة الاكتمال داخلها للشهر
-   الناقص. إن لم تكن البيانات متاحة، يختفي القسم كليًا بلا أي أثر بصري بدل
-   عرضه فارغًا أو مكسورًا.
-   ========================================================================= */
-function completionChartHtml(completion) {
+const EXPENSE_KINDS = {
+  wed: { label: 'مساهمة زواج', tone: 'awaiting', color: '#7B5CFA', icon: 'rings2' },
+  diyat: { label: 'دية', tone: 'ok', color: '#12C2A5', icon: 'shield' },
+  fee: { label: 'رسوم بنكية', tone: 'late', color: '#FF6FAE', icon: 'percent' },
+  other: { label: 'مصروف آخر', tone: 'new', color: '#3AA7FF', icon: 'receipt' }
+};
+function expenseKind(desc) {
+  const t = String(desc || '');
+  if (/زواج/.test(t)) return 'wed';
+  if (/ديات|دية/.test(t)) return 'diyat';
+  if (/رسوم/.test(t)) return 'fee';
+  return 'other';
+}
+
+function ringHtml(m, isLast) {
+  const C = 138.23, pct = clampPct(m.pct), complete = !!m.complete || pct >= 100;
+  let g = '', cls = 'var(--brand)';
+  if (complete) {
+    g = '<circle cx="29" cy="29" r="22" fill="none" stroke="url(#sfG1)" stroke-width="6"/>';
+  } else {
+    if (isLast) { g += '<circle cx="29" cy="29" r="22" fill="none" style="stroke:var(--pending)" stroke-opacity="0.6" stroke-width="4" stroke-dasharray="3 5" stroke-linecap="round"/>'; cls = 'var(--pending)'; }
+    else cls = 'var(--late)';
+    if (pct > 0) g += `<circle cx="29" cy="29" r="22" fill="none" ${isLast ? 'stroke="url(#sfG1)"' : 'style="stroke:var(--late)"'} stroke-width="6" stroke-linecap="round" stroke-dasharray="${(pct / 100 * C).toFixed(1)} ${C}" transform="rotate(-90 29 29)"/>`;
+  }
+  const title = `${escapeHtml(m.label)}: ${m.covered}/${m.required} (${pct}%)`;
+  return `<div class="sf-ring" title="${title}"><div class="sf-well"><svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">${g}</svg><span class="pc" style="color:${cls}">${pct}%</span></div><span class="sf-mu" style="font-size:11.5px">${escapeHtml(m.label)}</span></div>`;
+}
+
+function ringsCardHtml(completion) {
   if (!Array.isArray(completion) || completion.length < 2) return '';
-
-  const bubbles = completion.map(m => {
-    const pct = Math.max(0, Math.min(100, Number(m.pct) || 0));
-    const isComplete = !!m.complete;
-    const title = `${escapeHtml(m.label)}: ${m.covered}/${m.required} أعضاء سدّدوا (${pct}%)`;
-    return `
-      <div class="pulse-bubble-col">
-        <div class="completion-ring ${isComplete ? 'complete' : 'incomplete'}" style="--pct:${pct};" title="${title}">
-          <span class="completion-pct">${pct}%</span>
-        </div>
-        <div class="pulse-bubble-label">${escapeHtml(m.label)}</div>
-      </div>`;
-  }).join('');
-
+  const last = completion.length - 1;
+  let i = last; if (!completion[i].complete) i--;
+  let streak = 0; while (i >= 0 && completion[i].complete) { streak++; i--; }
+  const hasPast = completion.some((m, k) => !m.complete && k !== last);
+  const hasCurrent = !completion[last].complete;
   return `
-    <div class="pulse-wrap">
-      <div class="pulse-bubbles">${bubbles}</div>
-    </div>
-  `;
+    <div class="sf-card reveal">
+      <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="sfG1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8B6CFF"/><stop offset="1" stop-color="#4C6FFF"/></linearGradient></defs></svg>
+      <div class="sf-row2"><div class="sf-t">اكتمال آخر ${completion.length} أشهر</div>${streak > 0 ? `<span class="sf-pill ok">${streakText(streak)}</span>` : ''}</div>
+      <div class="sf-rings">${completion.map((m, k) => ringHtml(m, k === last)).join('')}</div>
+      <div class="sf-legend"><span><i style="background:#6A4DF4"></i>شهر مكتمل</span>${hasPast ? '<span><i style="background:var(--late)"></i>شهر ناقص</span>' : ''}${hasCurrent ? '<span><i style="border:2px dashed var(--pending)"></i>شهر جارٍ لم ينتهِ</span>' : ''}</div>
+    </div>`;
+}
+
+function monthCardHtml(completion) {
+  if (!Array.isArray(completion) || completion.length < 1) return { html: '', label: '' };
+  const m = completion[completion.length - 1];
+  const parts = String(m.monthKey || '').split('-').map(Number);
+  const mm = parts[1] || 0;
+  const range = mm ? `24 ${MONTHS_AR[mm - 1]} – 23 ${MONTHS_AR[mm % 12]}` : '';
+  const pct = clampPct(m.pct), done = !!m.complete || pct >= 100;
+  return { label: m.label, html: `
+    <div class="sf-card reveal">
+      <div class="sf-row2"><div class="sf-t">شهر ${escapeHtml(m.label)}</div><div class="sf-mu">${range}</div></div>
+      <div class="sf-track"><div class="sf-fill" style="width:${Math.max(pct, 3)}%"></div></div>
+      <div class="sf-row2" style="margin-top:10px"><span style="font-size:12px;font-weight:500;color:${done ? 'var(--ok)' : 'var(--pending)'}">${done ? 'الشهر مكتمل' : 'الشهر جارٍ'}</span><span class="sf-mu">${m.covered} من ${m.required} سددوا</span></div>
+    </div>` };
+}
+
+function statusMessageHtml(d, label) {
+  const late = d.lateMembers.length, aw = Number(d.awaitingCount) || 0, pe = Number(d.pendingCount) || 0;
+  const month = label ? ' لشهر ' + label : '';
+  let text, tone, icon;
+  if (late === 0 && aw === 0 && pe === 0) { text = 'جميع الأعضاء منتظمون في السداد' + month + '.'; tone = 'ok'; icon = ICONS.checkCircle; }
+  else {
+    const rest = [];
+    if (aw > 0) rest.push(aw + ' عضوًا بانتظار السداد' + month);
+    if (pe > 0) rest.push(pe + ' معلّق');
+    text = (late === 0 ? '<b>لا متأخرين.</b>' : '<b>' + late + ' متأخر.</b>') + (rest.length ? ' ' + rest.join('، و') + '.' : '');
+    tone = late > 0 ? 'late' : 'awaiting'; icon = late > 0 ? ICONS.alertTriangle : ICONS.clock;
+  }
+  return `<div class="sf-card sf-msg reveal" style="margin-top:22px"><span class="tl ${tone}">${icon}</span><div>${text}</div></div>`;
+}
+
+function donutHtml(list, total) {
+  const C = 2 * Math.PI * 56, agg = {};
+  list.forEach(e => { const k = expenseKind(e.description); agg[k] = (agg[k] || 0) + (Number(e.amount) || 0); });
+  const sum = Object.values(agg).reduce((a, b) => a + b, 0) || 1;
+  let acc = 0, segs = '', legend = '';
+  ['wed', 'diyat', 'fee', 'other'].forEach(k => {
+    if (!agg[k]) return;
+    const len = agg[k] / sum * C;
+    if (len >= 1.2) segs += `<circle cx="75" cy="75" r="56" fill="none" stroke="${EXPENSE_KINDS[k].color}" stroke-width="16" stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-acc).toFixed(2)}"/>`;
+    acc += len;
+    legend += `<div><span><i style="background:${EXPENSE_KINDS[k].color}"></i>${EXPENSE_KINDS[k].label}</span><b>${fmtShort(agg[k])}</b></div>`;
+  });
+  return `<div class="sf-donut"><div class="dn"><svg width="150" height="150" viewBox="0 0 150 150" role="img" aria-label="توزيع المصروفات حسب النوع"><g transform="rotate(-90 75 75)"><circle cx="75" cy="75" r="56" fill="none" stroke="var(--surface-2)" stroke-width="16"/>${segs}</g></svg><div class="ct"><span class="sf-mu" style="font-size:11px">الإجمالي</span><b>${fmt(total)}</b></div></div><div class="sf-lg">${legend}</div></div>`;
 }
 
 let lastLoadedData = null;
@@ -845,8 +1072,7 @@ function renderApp(d) {
   EXPENSES_DATA = d.expensesList;
   // (الاسم الإنجليزي وآخر 4 أرقام لم تعد في الرد العام — تُحمَّل من بيانات المشرف بعد إدخال المفتاح: loadAdminData_)
 
-  // شارة صغيرة على الزر العائم لو وُجدت رسائل SMS بانتظار تحديد العضو —
-  // تنبيه فوري مرئي دون الحاجة لفتح لوحة التحكم للتأكد.
+  // شارة صغيرة على زر لوحة التحكم لو وُجدت رسائل SMS بانتظار تحديد العضو.
   const fabBtn = document.getElementById('adminTriggerBtn');
   const existingBadge = fabBtn.querySelector('.fab-badge');
   if (existingBadge) existingBadge.remove();
@@ -859,74 +1085,89 @@ function renderApp(d) {
     fabBtn.appendChild(badge);
   }
 
-  const lateListHtml = d.lateMembers.length === 0
-    ? `<div class="empty-late reveal">${ICONS.checkCircle}<span>جميع الأعضاء منتظمون في السداد لهذا الشهر.</span></div>`
-    : d.lateMembers.map((m, idx) => {
-        const cycles = Number(m.cyclesLate || m.lateCycles || 0);
-        const cyclesLabel = cycles === 1 ? 'دورة واحدة' : cycles === 2 ? 'دورتان' : `${cycles} دورات`;
-        const cyclesTag = cycles > 0 ? `<span class="tag">${cyclesLabel}</span>` : '';
-        return `<div class="late-item cascade-item" data-cascade-idx="${idx}"><span>${escapeHtml(m.name)}</span><span class="tag-group"><span class="tag">متأخر</span>${cyclesTag}</span></div>`;
-      }).join('');
-
+  const completion = d.monthlyCompletion;
+  const month = monthCardHtml(completion);
+  const counts = { all: d.members.length, awaiting: Number(d.awaitingCount) || 0, pending: Number(d.pendingCount) || 0, late: d.lateMembers.length, ok: Number(d.okCount) || 0, new: Number(d.newCount) || 0 };
+  const chipDefs = [['all', 'الكل'], ['awaiting', 'بانتظار السداد'], ['pending', 'معلق'], ['late', 'متأخر'], ['ok', 'منتظم'], ['new', 'عضو جديد']];
+  const chipsHtml = chipDefs.filter(c => c[0] === 'all' || counts[c[0]] > 0).map(c => `<button type="button" class="sf-chip-btn${c[0] === (window._memberFilter || 'all') ? ' on' : ''}" data-filter="${c[0]}">${c[1]} ${counts[c[0]]}</button>`).join('');
   const rowsHtml = d.members.map((m, idx) => memberRowHtml(m, idx, true)).join('');
 
-  const expensesRowsHtml = d.expensesList.map((e, idx) => `
-    <div class="row-item cascade-item" data-cascade-idx="${idx}">
-      <div class="row-name" style="font-weight:500;">${escapeHtml(e.description)}<div style="font-size:12px;color:var(--text-3);margin-top:3px;font-weight:400;">${escapeHtml(e.date)}</div></div>
-      <div class="row-amount" style="color:var(--late);">${fmt(e.amount)} ﷼</div>
-    </div>
-  `).join('');
+  const tile = (cls, icon, n, label) => `<div class="sf-tile reveal"><span class="tl ${cls}">${icon}</span><div class="n count-num" data-count="${n}">0</div><div class="l">${label}</div></div>`;
+  const tiles = [tile('awaiting', ICONS.clock, counts.awaiting, 'بانتظار السداد'), tile('ok', ICONS.checkCircle, counts.ok, 'منتظم'), tile('pending', ICONS.pause, counts.pending, 'معلق'), tile('late', ICONS.alertTriangle, counts.late, 'متأخر')];
+  if (counts.new > 0) tiles.push(tile('new', ICONS.info, counts.new, 'عضو جديد'));
 
-  const statsCells = [];
-  statsCells.push(`<div class="stat-cell"><div class="dot"></div><div class="num count-num" data-count="${d.okCount}">0</div><div class="label">منتظم</div></div>`);
-  statsCells.push(`<div class="stat-cell late"><div class="dot"></div><div class="num count-num" data-count="${d.lateMembers.length}">0</div><div class="label">متأخر</div></div>`);
-  const hasAwaiting = (d.awaitingCount || 0) > 0;
-  if (hasAwaiting) statsCells.push(`<div class="stat-cell awaiting"><div class="dot"></div><div class="num count-num" data-count="${d.awaitingCount}">0</div><div class="label">بانتظار السداد</div></div>`);
-  const hasPending = (d.pendingCount || 0) > 0;
-  const hasNew = (d.newCount || 0) > 0;
-  if (hasPending) statsCells.push(`<div class="stat-cell pending"><div class="dot"></div><div class="num count-num" data-count="${d.pendingCount}">0</div><div class="label">معلق</div></div>`);
-  if (hasNew) statsCells.push(`<div class="stat-cell new"><div class="dot"></div><div class="num count-num" data-count="${d.newCount}">0</div><div class="label">عضو جديد</div></div>`);
-  // شبكة البطاقات تتكيّف مع العدد الفعلي: عمودان لو كانت 2 أو 4 بطاقات
-  // (تناسق بصري أفضل من 4 أعمدة ضيقة على الجوال)، وثلاثة أعمدة لو كانت 3.
-  const bentoGridClass = (statsCells.length === 3) ? '' : ' two-col';
+  const expList = Array.isArray(d.expensesList) ? d.expensesList : [];
+  const expRows = expList.slice().reverse().map((e, idx) => {
+    const k = EXPENSE_KINDS[expenseKind(e.description)];
+    const title = SHOW_EXPENSE_DESCRIPTIONS ? escapeHtml(e.description) : k.label;
+    return `<div class="sf-row cascade-item" data-cascade-idx="${idx}"><span class="tl ${k.tone}">${ICONS[k.icon]}</span><div class="sf-rb"><div class="sf-rn">${title}</div><div class="sf-rs">${arDate(e.date)}</div></div><div class="sf-amt">${fmt(e.amount)} ﷼</div></div>`;
+  }).join('');
+
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const ibanPretty = escapeHtml(String(BANK_INFO.iban || '').replace(/(.{4})/g, '$1 ').trim());
+  const act = (id, cls, icon, label) => `<button type="button" class="sf-act" id="${id}"><span class="ico ${cls}">${icon}</span><span>${label}</span></button>`;
 
   document.getElementById('appContainer').innerHTML = `
-    <div class="card hero-card">
-      <div class="hero-label">الرصيد الحالي للصندوق</div>
-      <div class="hero-amount"><span class="count-num" data-count="${d.balance}">0</span><span class="unit">ريال</span></div>
-      ${completionChartHtml(d.monthlyCompletion)}
-      <div class="mini-stats-row">
-        <div class="mini-stat income"><div class="mini-label">إجمالي المساهمات</div><div class="mini-value">${fmt(d.contributions)} ﷼</div></div>
-        <div class="mini-stat expense"><div class="mini-label">إجمالي السحوبات</div><div class="mini-value">${fmt(d.expenses)} ﷼</div></div>
+    <section class="sf-panel active" data-panel="home" id="panel-home">
+      <div class="sf-hero reveal"><span class="sf-chip"></span>
+        <div class="lbl">الرصيد الحالي للصندوق</div>
+        <div class="amt"><span class="num count-num" data-count="${d.balance}">0</span><span class="unit">ريال</span></div>
       </div>
-      <div class="stats-bento${bentoGridClass}">${statsCells.join('')}</div>
-      <div class="last-update">
-        <div class="sync-status">تمت مزامنة البيانات بنجاح</div>
-        <div class="update-title">آخر تحديث</div>
-        <div class="update-date">${escapeHtml(d.lastUpdateDate)}</div>
-        <div class="update-time">${escapeHtml(d.lastUpdateTime)}</div>
+      <div class="sf-acts">
+        ${act('bylawsTriggerBtn', 'c1', ICONS.scroll, 'اللائحة')}
+        ${act('bankCardTriggerBtn', 'c2', ICONS.bank, 'الحساب')}
+        ${act('infoTriggerBtn', 'c3', ICONS.info, 'الحالات')}
       </div>
-      <button class="bylaws-trigger" id="bylawsTriggerBtn" type="button">${ICONS.scroll}<span>اللائحة المالية للصندوق</span></button>
-      <button class="bank-card-trigger" id="bankCardTriggerBtn" type="button">${ICONS.bank}<span>بيانات الحساب البنكي</span></button>
-    </div>
-
-    <section class="reveal" id="lateSection">
-      <div class="section-header"><span class="eyebrow-bar"></span><h2>المتأخرون عن السداد</h2><button id="infoTriggerBtn" class="info-trigger" type="button" aria-label="ما معنى الحالات؟">${ICONS.info}</button></div>
-      <div class="late-list">${lateListHtml}</div>
+      <div class="sf-sums">
+        <div class="sf-sum reveal"><span class="tl ok s36">${ICONS.up}</span><div class="sf-mu" style="margin-top:10px">المساهمات</div><div class="v">${fmt(d.contributions)}</div></div>
+        <div class="sf-sum reveal"><span class="tl late s36">${ICONS.down}</span><div class="sf-mu" style="margin-top:10px">السحوبات</div><div class="v">${fmt(d.expenses)}</div></div>
+      </div>
+      ${ringsCardHtml(completion)}
+      ${month.html}
+      ${statusMessageHtml(d, month.label)}
+      <div class="sf-tiles">${tiles.join('')}</div>
+      <div class="sf-sync"><b>تمت مزامنة البيانات بنجاح</b>آخر تحديث ${escapeHtml(d.lastUpdateDate)} · ${escapeHtml(d.lastUpdateTime)}</div>
     </section>
 
-    <section class="reveal" id="membersSection">
-      <div class="section-header"><span class="eyebrow-bar"></span><h2>كشف الحسابات المفصل للأعضاء</h2></div>
-      <input type="text" id="searchInput" class="search-input" placeholder="ابحث عن اسم عضو أو حالة (منتظم/بانتظار السداد/متأخر/معلق)...">
-      <div class="list-card" id="tableBody">${rowsHtml}</div>
+    <section class="sf-panel reveal" data-panel="members" id="membersSection">
+      <div class="sf-head"><h2>الأعضاء</h2><p>${counts.all} عضوًا${month.label ? ' · شهر ' + escapeHtml(month.label) : ''}</p></div>
+      <label class="sf-search">${ICONS.search}<input type="search" id="searchInput" placeholder="ابحث عن اسم عضو أو حالة" aria-label="ابحث عن اسم عضو أو حالة"></label>
+      <div class="sf-chips" id="memberChips">${chipsHtml}</div>
+      <div class="sf-list" id="tableBody">${rowsHtml}</div>
     </section>
 
-    ${d.expensesList.length > 0 ? `
-    <section class="reveal" id="expensesSection">
-      <div class="section-header"><span class="eyebrow-bar"></span><h2>سجل المصروفات (السحوبات)</h2></div>
-      <div class="list-card" id="expensesTableBody">${expensesRowsHtml}</div>
+    <section class="sf-panel reveal" data-panel="expenses" id="expensesSection">
+      <div class="sf-head"><h2>المصروفات</h2><p>سجل السحوبات</p></div>
+      ${expList.length === 0 ? '<div class="sf-card sf-msg"><span class="tl ok">' + ICONS.checkCircle + '</span><div>لا توجد مصروفات مسجّلة بعد.</div></div>' : `
+      <div class="sf-card">${donutHtml(expList, d.expenses)}</div>
+      <div class="sf-head" style="padding-top:22px"><div class="sf-t">السجل</div></div>
+      <div id="expensesTableBody">${expRows}</div>`}
     </section>
-    ` : ''}
+
+    <section class="sf-panel" data-panel="more" id="morePanel">
+      <div class="sf-head"><h2>المزيد</h2><p>اللائحة والحساب والمظهر</p></div>
+      <div class="sf-card" style="margin-top:12px">
+        <div class="sf-row2"><div class="sf-t">اللائحة المالية</div><span class="sf-mu">13 مادة · 6 فصول</span></div>
+        <div class="sf-facts">${BYLAW_FACTS.map(f => `<div class="sf-fact"><b>${f[0]}</b><span>${f[1]}</span></div>`).join('')}</div>
+        <button type="button" class="sf-btn pri" data-open="bylaws">اقرأ اللائحة كاملة</button>
+      </div>
+      <div class="sf-card">
+        <div class="sf-row2"><div class="sf-t">الحساب البنكي</div><span class="sf-mu">${escapeHtml(BANK_INFO.bankName)}</span></div>
+        <div class="sf-mu" style="margin-top:12px">اسم الحساب</div><div style="font-size:14px;margin-top:2px;color:var(--text-1)">${escapeHtml(BANK_INFO.fundName)}</div>
+        <div class="sf-mu" style="margin-top:10px">الآيبان</div><div class="sf-iban">${ibanPretty}</div>
+        <button type="button" class="sf-btn" data-open="bank">عرض بيانات الحساب ونسخها</button>
+      </div>
+      <div class="sf-card">
+        <div class="sf-row2"><div class="sf-t">معنى الحالات</div><span class="tl awaiting s36">${ICONS.info}</span></div>
+        <div class="sf-mu" style="margin-top:10px;line-height:1.8">منتظم، بانتظار السداد، معلق، متأخر: شرح كل حالة ومتى تظهر.</div>
+        <button type="button" class="sf-btn" data-open="info">اقرأ الشرح</button>
+      </div>
+      <div class="sf-card sf-row2">
+        <div style="display:flex;align-items:center;gap:12px"><span class="tl awaiting">${ICONS.moonO}</span><div><div class="sf-t">المظهر الداكن</div><div class="sf-mu">يتبع جهازك افتراضيًا</div></div></div>
+        <button type="button" class="sf-switch" id="themeSwitch" role="switch" aria-label="المظهر الداكن" aria-checked="${isDark}"></button>
+      </div>
+      <div class="sf-sync"><b>تمت مزامنة البيانات بنجاح</b>آخر تحديث ${escapeHtml(d.lastUpdateDate)} · ${escapeHtml(d.lastUpdateTime)}</div>
+    </section>
   `;
 
   initAnimations();
@@ -936,6 +1177,15 @@ function renderApp(d) {
   initSectionBackground();
   document.getElementById('bylawsTriggerBtn').addEventListener('click', openBylaws);
   document.getElementById('bankCardTriggerBtn').addEventListener('click', openBankCard);
+  document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => {
+    const k = b.getAttribute('data-open');
+    if (k === 'bylaws') openBylaws(); else if (k === 'bank') openBankCard(); else if (k === 'info') document.getElementById('infoTriggerBtn').click();
+  }));
+  const sw = document.getElementById('themeSwitch');
+  if (sw) sw.addEventListener('click', () => {
+    document.getElementById('themeToggleBtn').click();
+    sw.setAttribute('aria-checked', document.documentElement.getAttribute('data-theme') === 'dark' ? 'true' : 'false');
+  });
   if (isFirstRender) requestAnimationFrame(() => window.scrollTo(0, 0));
 }
 
@@ -1091,70 +1341,67 @@ function cascadeRevealSection(sectionEl) {
   });
 }
 
-/* ===== الشريط السفلي الثابت (Tab bar) ===== */
+/* ===== الشريط السفلي: أربع شاشات (الرئيسية، الأعضاء، المصروفات، المزيد) ===== */
+const TAB_NAMES = ['home', 'members', 'expenses', 'more'];
+function showTab(name, userAction) {
+  window._activeTab = name;
+  document.querySelectorAll('.sf-panel').forEach(p => p.classList.toggle('active', p.getAttribute('data-panel') === name));
+  document.querySelectorAll('.tab-link').forEach(l => {
+    const on = l.getAttribute('data-tab') === name;
+    l.classList.toggle('active', on);
+    if (on) l.setAttribute('aria-current', 'page'); else l.removeAttribute('aria-current');
+  });
+  if (userAction) {
+    try { history.replaceState(null, '', '#' + name); } catch (e) {}
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }
+}
 function initTabbar() {
   const tabbar = document.getElementById('tabbar');
   if (!tabbar) return;
   tabbar.style.display = 'block';
-  const expensesLink = document.getElementById('expensesTabLink');
-  if (expensesLink) expensesLink.style.display = document.getElementById('expensesSection') ? '' : 'none';
-  document.querySelectorAll('.tab-link').forEach(l => { l.innerHTML = ICONS[l.dataset.icon] + '<span>' + l.textContent + '</span>'; });
-  const links = Array.from(document.querySelectorAll('.tab-link')).filter(l => l.style.display !== 'none');
-  const sections = links.map(l => document.querySelector(l.getAttribute('href'))).filter(Boolean);
-  if (window._tabbarObserver) window._tabbarObserver.disconnect();
-  const obs = new IntersectionObserver((entries) => {
-    entries.forEach(en => {
-      if (en.isIntersecting) {
-        const id = '#' + en.target.id;
-        links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === id));
-      }
-    });
-  }, { rootMargin: '-10% 0px -70% 0px', threshold: 0 });
-  sections.forEach(s => obs.observe(s));
-  window._tabbarObserver = obs;
-  // يضبط التمييز فورًا عند الضغط، بدل انتظار مراقب التمرير وحده — الذي قد
-  // لا يلتقط الانتقال بدقة لبعض الأقسام (مثل قسم قصير أو انتقال سريع جدًا)،
-  // فيبقى التمييز عالقًا على التبويب القديم كما لوحظ فعليًا.
-  links.forEach(l => {
-    l.addEventListener('click', () => {
-      links.forEach(x => x.classList.toggle('active', x === l));
-    });
+  document.querySelectorAll('.tab-link').forEach(l => {
+    if (l.getAttribute('data-ready')) return;
+    l.innerHTML = ICONS[l.getAttribute('data-icon')] + '<span>' + l.textContent + '</span>';
+    l.setAttribute('data-ready', '1');
+    l.addEventListener('click', (e) => { e.preventDefault(); showTab(l.getAttribute('data-tab'), true); });
   });
+  const fromHash = (location.hash || '').replace('#', '');
+  showTab(TAB_NAMES.indexOf(fromHash) !== -1 ? fromHash : (window._activeTab || 'home'), false);
 }
 
-/* ===== خلفية تتحول تدريجيًا حسب القسم الظاهر على الشاشة ===== */
-function initSectionBackground() {
-  const map = { lateSection: '', membersSection: 'section-members', expensesSection: 'section-expenses' };
-  if (window._bgObserver) window._bgObserver.disconnect();
-  const targets = Object.keys(map).map(id => document.getElementById(id)).filter(Boolean);
-  const obs = new IntersectionObserver((entries) => {
-    entries.forEach(en => {
-      if (en.isIntersecting) {
-        document.body.classList.remove('section-members', 'section-expenses');
-        const cls = map[en.target.id];
-        if (cls) document.body.classList.add(cls);
-      }
-    });
-  }, { rootMargin: '-35% 0px -50% 0px', threshold: 0 });
-  targets.forEach(t => obs.observe(t));
-  window._bgObserver = obs;
-}
+/* (أُلغيت خلفية الأقسام المتبدلة: الهوية الجديدة بخلفية واحدة) */
+function initSectionBackground() {}
 
 function initSearch() {
-  document.getElementById('searchInput').addEventListener('input', function(e) {
-    const query = e.target.value.trim().toLowerCase();
-    const tbody = document.getElementById('tableBody');
-    const normalize = text => text.toLowerCase().replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").trim();
-    let filtered;
-    if (normalize(query) === "متاخر" || normalize(query) === "منتظم" || normalize(query) === "معلق" || normalize(query) === normalize("بانتظار السداد")) {
-      filtered = allMembersData.filter(m => normalize(statusLabel(m.status)) === normalize(query));
-    } else {
-      filtered = allMembersData.filter(m => normalize(m.name.split(" ")[0]).startsWith(normalize(query)));
+  const input = document.getElementById('searchInput');
+  const tbody = document.getElementById('tableBody');
+  const chips = document.querySelectorAll('.sf-chip-btn');
+  if (!input || !tbody) return;
+  window._memberFilter = window._memberFilter || 'all';
+  const normalize = text => text.toLowerCase().replace(/[أإآ]/g, "ا").replace(/ة/g, "ه").replace(/ى/g, "ي").trim();
+  function apply() {
+    const query = input.value.trim().toLowerCase();
+    let base = allMembersData.filter(m => window._memberFilter === 'all' || m.status === window._memberFilter);
+    let filtered = base;
+    if (query) {
+      const nq = normalize(query);
+      if (nq === "متاخر" || nq === "منتظم" || nq === "معلق" || nq === normalize("بانتظار السداد")) {
+        filtered = allMembersData.filter(m => normalize(statusLabel(m.status)) === nq);
+      } else {
+        filtered = base.filter(m => normalize(m.name.split(" ")[0]).startsWith(nq));
+        if (filtered.length === 0) filtered = base.filter(m => normalize(m.name).includes(nq));
+      }
     }
-    if (filtered.length === 0) filtered = allMembersData.filter(m => normalize(m.name).includes(normalize(query)));
     if (filtered.length === 0) { tbody.innerHTML = `<div class="no-results">لم يتم العثور على نتائج متطابقة</div>`; return; }
     tbody.innerHTML = filtered.map((m, i) => memberRowHtml(m, i, false)).join('');
-  });
+  }
+  input.addEventListener('input', apply);
+  chips.forEach(c => c.addEventListener('click', () => {
+    window._memberFilter = c.getAttribute('data-filter');
+    chips.forEach(x => x.classList.toggle('on', x === c));
+    apply();
+  }));
 }
 
 function applyBranding() {
@@ -1672,12 +1919,12 @@ function openAdminPanel() {
           <div class="admin-field">
             <label>قيمة الاشتراك الشهري لكل عضو (ريال)</label>
             <input type="number" id="subscriptionAmountInput" min="1" step="1" value="${adminData.subscriptionAmount ? adminData.subscriptionAmount : ''}">
-            <div class="admin-note">القيمة الجديدة تسري من بداية الدورة التي تحددها أدناه (الدورة تبدأ يوم 24)، وتبقى الدورات السابقة بقيمتها القديمة، فلا تتغير حالة أي عضو سدّد ما عليه سابقًا.</div>
+            <div class="admin-note">القيمة الجديدة تسري من بداية الشهر المالي الذي تحدده أدناه (الشهر المالي يبدأ يوم 24)، وتبقى الأشهر السابقة بقيمتها القديمة، فلا تتغير حالة أي عضو سدّد ما عليه سابقًا.</div>
           </div>
           <div class="admin-field">
-            <label>تسري من (اختياري — الافتراضي بداية الدورة القادمة)</label>
+            <label>تسري من (اختياري — الافتراضي بداية الشهر المالي القادم)</label>
             <input type="date" id="subscriptionEffectiveInput">
-            <div class="admin-note">أي تاريخ تختاره يُحوَّل لبداية الدورة (يوم 24) التي يقع فيها.</div>
+            <div class="admin-note">أي تاريخ تختاره يُحوَّل لبداية الشهر المالي (يوم 24) الذي يقع فيه.</div>
           </div>
           <div class="admin-actions"><button class="admin-btn" id="setSubscriptionAmountBtn">تحديث القيمة</button></div>
           <div id="subscriptionAmountMsg"></div>
@@ -2234,8 +2481,8 @@ async function handleSetSubscriptionAmount() {
   if (!input.value || !amount || amount <= 0) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال قيمة اشتراك صحيحة (رقم موجب).</div>'; return; }
   const effInput = document.getElementById('subscriptionEffectiveInput');
   const effectiveDate = effInput && effInput.value ? effInput.value : '';
-  const effLabel = effectiveDate ? `من بداية الدورة التي يقع فيها ${effectiveDate}` : 'من بداية الدورة القادمة';
-  if (!confirm(`هل أنت متأكد من تغيير قيمة الاشتراك الشهري إلى ${amount} ريال ${effLabel}؟ تبقى الدورات السابقة بقيمتها القديمة.`)) return;
+  const effLabel = effectiveDate ? `من بداية الشهر المالي الذي يقع فيه ${effectiveDate}` : 'من بداية الشهر المالي القادم';
+  if (!confirm(`هل أنت متأكد من تغيير قيمة الاشتراك الشهري إلى ${amount} ريال ${effLabel}؟ تبقى الأشهر السابقة بقيمتها القديمة.`)) return;
   const btn = document.getElementById('setSubscriptionAmountBtn');
   btn.disabled = true;
   msgEl.innerHTML = '<div class="admin-msg">جاري التحديث...</div>';
@@ -2245,7 +2492,7 @@ async function handleSetSubscriptionAmount() {
     const result = await resp.json();
     recordAdminKeyOutcome_(result);
     if (result.success) {
-      msgEl.innerHTML = `<div class="admin-msg success">تم تحديث قيمة الاشتراك إلى ${escapeHtml(String(result.subscriptionAmount))} ريال، وتسري من بداية الدورة ${escapeHtml(String(result.effectiveDate || ''))}.</div>`;
+      msgEl.innerHTML = `<div class="admin-msg success">تم تحديث قيمة الاشتراك إلى ${escapeHtml(String(result.subscriptionAmount))} ريال، وتسري من بداية الشهر المالي ${escapeHtml(String(result.effectiveDate || ''))}.</div>`;
       loadData();
     } else {
       msgEl.innerHTML = '<div class="admin-msg error">فشل التحديث: ' + escapeHtml(result.error || 'خطأ غير معروف') + '</div>';
