@@ -668,6 +668,37 @@ main.container{max-width:560px;margin:0 auto;padding:6px 22px 150px}
 .tab-link svg{width:22px;height:22px}
 footer{text-align:center;color:var(--text-3)!important;font-size:12px;padding:0 20px 140px!important}
 @media (prefers-reduced-motion: reduce){.reveal,.cascade-item,.sf-panel.active{transition:none!important;animation:none!important;opacity:1!important;transform:none!important}}
+
+/* ===== نافذة الحساب البنكي بالهوية الجديدة ===== */
+.bank-card{background:#6A4DF4!important;box-shadow:0 24px 54px rgba(106,77,244,0.45)!important;color:#fff!important}
+.bank-card::before{inset:auto!important;left:-60px!important;bottom:-100px!important;top:auto!important;right:auto!important;width:210px!important;height:210px!important;border-radius:50%!important;background:rgba(255,255,255,0.11)!important}
+.bank-card::after{content:"";position:absolute;right:-40px;top:-60px;width:150px;height:150px;border-radius:50%;background:rgba(255,255,255,0.09);pointer-events:none}
+.bank-card>*{position:relative;z-index:1}
+.bank-card-bank{color:#fff!important}
+.bank-card-fundlabel,.bank-card-iban-label,.bank-card-accountno{color:rgba(255,255,255,0.92)!important}
+.bank-card-chip{background:rgba(255,255,255,0.24)!important}
+.bank-card-copy{background:rgba(255,255,255,0.18)!important;border:1px solid rgba(255,255,255,0.45)!important;color:#fff!important;border-radius:14px!important;min-height:44px;min-width:44px;display:flex;align-items:center;justify-content:center}
+.bank-card-copy.copied{background:#fff!important;border-color:#fff!important;color:#0B7A62!important}
+.bank-card-footer{border-top:1px solid rgba(255,255,255,0.28)!important}
+.bank-card-note{color:rgba(255,255,255,0.92)!important}
+/* ===== مخطط المساهمات والمصروفات ===== */
+.sf-bars{display:flex;justify-content:space-between;align-items:flex-end;height:166px;margin-top:14px}
+.sf-bar{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;flex:1}
+.sf-bar .b{width:34px;border-radius:12px 12px 8px 8px;background:linear-gradient(180deg,#8B6CFF,#4F5BE8)}
+.sf-bar .v{font-size:11px;font-weight:600;color:var(--text-2)}
+.sf-bar .m{font-size:11px;color:var(--text-2)}
+.sf-bar.cur .b{background:transparent;border:2px dashed var(--pending);box-sizing:border-box}
+.sf-bar.cur .v{color:var(--pending)}
+.sf-lg em{font-style:normal;font-size:11px;color:var(--text-2);margin-inline-start:4px}
+.sf-rn.wrap{white-space:normal;line-height:1.6}
+/* ===== نافذة التقرير الشهري ===== */
+.sf-rep-hero{background:#6A4DF4;color:#fff;border-radius:26px;padding:18px 20px;margin-top:6px}
+.sf-rep-hero b{display:block;font-size:20px;font-weight:600}
+.sf-rep-hero span{font-size:12.5px;opacity:.92}
+.sf-rep-big{font-size:34px;font-weight:600;margin-top:6px;color:var(--text-1)}
+.sf-rep-big small{font-size:15px;font-weight:400;color:var(--text-2);margin-inline-start:6px}
+.sf-rep-actions{display:flex;gap:12px;padding:12px 20px calc(14px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--border);background:var(--surface)}
+.sf-rep-actions .sf-btn{margin-top:0;flex:1}
 </style>
 </head>
 <body>
@@ -717,6 +748,7 @@ footer{text-align:center;color:var(--text-3)!important;font-size:12px;padding:0 
 <button id="adminTriggerBtn" class="fab" aria-label="لوحة التحكم" title="لوحة التحكم"></button>
 <div id="adminMount"></div>
 <div id="bankCardMount"></div>
+<div id="reportMount"></div>
 <div id="bylawsMount"></div>
 
 <script>
@@ -750,6 +782,9 @@ const ICONS = {
   shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>',
   percent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19L19 5M7 7h.01M17 17h.01"/></svg>',
   search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>',
+  image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 9"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>',
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5l6.8-4M8.6 13.5l6.8 4"/></svg>',
   moonO: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg>'
 };
 document.getElementById('themeToggleBtn').innerHTML = ICONS.moon;
@@ -948,8 +983,8 @@ function statusLabel(status) { return status === 'ok' ? 'منتظم' : (status =
 function statusIcon(status) { return status === 'ok' ? ICONS.checkCircle : (status === 'pending' ? ICONS.alertCircle : (status === 'new' ? ICONS.info : (status === 'awaiting' ? ICONS.clock : ICONS.alertTriangle))); }
 
 const MONTHS_AR = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
-// false = يُعرض نوع المصروف فقط (مساهمة زواج / دية / رسوم) دون أسماء المستفيدين. true = الوصف كاملًا كما يصل من الشيت.
-const SHOW_EXPENSE_DESCRIPTIONS = false;
+// true = الوصف كما هو في الشيت (قرار صاحب الصندوق 2026/10). false = يُعرض نوع المصروف فقط دون أسماء المستفيدين.
+const SHOW_EXPENSE_DESCRIPTIONS = true;
 const BYLAW_FACTS = [['150', 'اشتراك شهري'], ['1,000', 'زواج المطير للعضو'], ['5,000', 'دية']];
 
 function arDate(str) {
@@ -984,6 +1019,174 @@ function expenseKind(desc) {
   if (/ديات|دية/.test(t)) return 'diyat';
   if (/رسوم/.test(t)) return 'fee';
   return 'other';
+}
+
+
+function contribChartHtml(list, completion) {
+  if (!Array.isArray(list) || list.length < 2) return '';
+  const max = Math.max.apply(null, list.map(x => Number(x.amount) || 0).concat([1]));
+  const lastIncomplete = Array.isArray(completion) && completion.length > 0 && !completion[completion.length - 1].complete;
+  const bars = list.map((x, i) => {
+    const amt = Number(x.amount) || 0, h = Math.max(6, Math.round(amt / max * 104));
+    const cur = i === list.length - 1 && lastIncomplete;
+    return `<div class="sf-bar${cur ? ' cur' : ''}" title="${escapeHtml(x.label)}: ${fmt(amt)} (${Number(x.count) || 0})"><span class="v">${amt === 0 ? '0' : (amt / 1000).toFixed(1)}</span><div class="b" style="height:${h}px"></div><span class="m">${escapeHtml(x.label)}</span></div>`;
+  }).join('');
+  return `<div class="sf-card reveal"><div class="sf-row2"><div class="sf-t">المساهمات حسب الشهر المالي</div><span class="sf-mu">ألف ريال</span></div><div class="sf-bars">${bars}</div>${lastIncomplete ? '<div class="sf-mu" style="margin-top:10px;font-size:11.5px">العمود المتقطع شهر جارٍ لم ينتهِ.</div>' : ''}</div>`;
+}
+
+/* ===== التقرير الشهري (قابل للمشاركة): إيرادات الشهر الحالي + مصروفاته إن وُجدت + المتأخرون فقط ===== */
+function buildReport(d) {
+  const c = d && d.monthlyCompletion;
+  if (!Array.isArray(c) || !c.length) return null;
+  const cur = c[c.length - 1];
+  const p = String(cur.monthKey || '').split('-').map(Number);
+  const y = p[0], mm = p[1];
+  if (!y || !mm) return null;
+  const start = new Date(y, mm - 1, 24, 0, 0, 0), end = new Date(y, mm, 23, 23, 59, 59);
+  const contrib = Array.isArray(d.monthlyContributions) ? d.monthlyContributions.find(x => x.monthKey === cur.monthKey) : null;
+  const exps = (d.expensesList || []).map(e => {
+    const q = String(e.date || '').match(/(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
+    return q ? { t: new Date(+q[1], +q[2] - 1, +q[3], 12), desc: String(e.description || '').replace(/\s+/g, ' ').trim(), amount: Number(e.amount) || 0, date: e.date } : null;
+  }).filter(e => e && e.t >= start && e.t <= end);
+  const now = new Date();
+  return {
+    label: cur.label, year: y,
+    range: `24 ${MONTHS_AR[mm - 1]} – 23 ${MONTHS_AR[mm % 12]}`,
+    revenue: contrib ? { amount: Number(contrib.amount) || 0, count: Number(contrib.count) || 0 } : null,
+    exps: exps, expTotal: exps.reduce((a, e) => a + e.amount, 0),
+    late: (d.members || []).filter(m => m.status === 'late').map(m => ({ name: m.name, months: Number(m.cyclesLate) || 0 })),
+    today: arDate(now.getFullYear() + '/' + (now.getMonth() + 1) + '/' + now.getDate())
+  };
+}
+
+function reportText(r) {
+  const L = [];
+  L.push('التقرير الشهري — ' + (BANK_INFO.fundName || 'صندوق صلة وإحسان العائلي'));
+  L.push('شهر ' + r.label + ' ' + r.year + ' (' + r.range + ')');
+  L.push('────────────');
+  L.push(r.revenue ? 'الإيرادات: ' + fmt(r.revenue.amount) + ' ريال (' + r.revenue.count + ' حوالة)' : 'الإيرادات: غير متاحة حاليًا');
+  if (r.exps.length === 0) L.push('المصروفات: لا توجد مصروفات هذا الشهر');
+  else { L.push('المصروفات: ' + fmt(r.expTotal) + ' ريال'); r.exps.forEach(e => L.push('  • ' + e.desc + ': ' + fmt(e.amount) + ' ريال')); }
+  if (r.late.length === 0) L.push('المتأخرون: لا يوجد متأخرون');
+  else { L.push('المتأخرون (' + r.late.length + '):'); r.late.forEach(m => L.push('  • ' + m.name + (m.months > 0 ? ' — ' + monthsLate(m.months) : ''))); }
+  L.push('────────────');
+  L.push('أُعدّ بتاريخ ' + r.today);
+  return L.join('\n');
+}
+
+function reportBodyHtml(r) {
+  const rev = r.revenue
+    ? `<div class="sf-rep-big">${fmt(r.revenue.amount)}<small>ريال</small></div><div class="sf-mu" style="margin-top:4px">${r.revenue.count} حوالة هذا الشهر</div>`
+    : '<div class="sf-mu" style="margin-top:8px">غير متاحة حاليًا.</div>';
+  const exp = r.exps.length === 0
+    ? '<div class="sf-t" style="margin-top:8px">لا توجد مصروفات هذا الشهر</div>'
+    : `<div class="sf-rep-big">${fmt(r.expTotal)}<small>ريال</small></div>` + r.exps.map(e => `<div class="sf-row2" style="margin-top:12px;align-items:flex-start"><div class="sf-rn wrap" style="flex:1">${escapeHtml(e.desc)}</div><div class="sf-amt">${fmt(e.amount)}</div></div>`).join('');
+  const late = r.late.length === 0
+    ? '<div class="sf-t" style="margin-top:8px;color:var(--ok)">لا يوجد متأخرون</div>'
+    : r.late.map(m => `<div class="sf-row2" style="margin-top:12px"><div class="sf-rn">${escapeHtml(m.name)}</div><span class="sf-pill late">${m.months > 0 ? monthsLate(m.months) : 'متأخر'}</span></div>`).join('');
+  return `<div class="sf-rep-hero"><b>شهر ${escapeHtml(r.label)} ${r.year}</b><span>${escapeHtml(r.range)}</span></div>
+    <div class="sf-card" style="margin-top:14px"><div class="sf-mu">إيرادات الشهر</div>${rev}</div>
+    <div class="sf-card" style="margin-top:14px"><div class="sf-mu">المصروفات</div>${exp}</div>
+    <div class="sf-card" style="margin-top:14px"><div class="sf-mu">الأعضاء المتأخرون${r.late.length ? ' (' + r.late.length + ')' : ''}</div>${late}</div>
+    <div class="sf-sync" style="margin-top:18px">أُعدّ بتاريخ ${escapeHtml(r.today)}</div>`;
+}
+
+function paintReport(r, createCanvas) {
+  const W = 1080, M = 56, IN = 40, FONT = '"Readex Pro","Tajawal","DejaVu Sans",system-ui,sans-serif';
+  function draw(ctx, H) {
+    ctx.direction = 'rtl'; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+    const R = W - M, L = M, iR = R - IN, iL = L + IN, CW = W - 2 * M;
+    const F = (sz, w) => { ctx.font = (w || 400) + ' ' + sz + 'px ' + FONT; };
+    const rr = (x, y, w, h, rad) => { ctx.beginPath(); ctx.moveTo(x + rad, y); ctx.lineTo(x + w - rad, y); ctx.quadraticCurveTo(x + w, y, x + w, y + rad); ctx.lineTo(x + w, y + h - rad); ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h); ctx.lineTo(x + rad, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - rad); ctx.lineTo(x, y + rad); ctx.quadraticCurveTo(x, y, x + rad, y); ctx.closePath(); };
+    const wrap = (text, maxW) => { const words = String(text).split(' '), lines = []; let cur = ''; for (const w of words) { const t = cur ? cur + ' ' + w : w; if (cur && ctx.measureText(t).width > maxW) { lines.push(cur); cur = w; } else cur = t; } if (cur) lines.push(cur); return lines; };
+    const cardBg = (y, h) => { ctx.fillStyle = '#FFFFFF'; rr(L, y, CW, h, 36); ctx.fill(); ctx.strokeStyle = '#E3E6F5'; ctx.lineWidth = 2; ctx.stroke(); };
+    const label = (txt, y) => { F(30, 500); ctx.fillStyle = '#5B5F86'; ctx.fillText(txt, iR, y); };
+    const bigNum = (txt, y) => { F(76, 600); ctx.fillStyle = '#1E1B4B'; const w = ctx.measureText(txt).width; ctx.fillText(txt, iR, y); F(32, 400); ctx.fillStyle = '#5B5F86'; ctx.fillText('ريال', iR - w - 18, y); };
+
+    ctx.fillStyle = '#EEF0FA'; ctx.fillRect(0, 0, W, H);
+    ctx.save(); rr(0, -80, W, 400, 56); ctx.clip(); ctx.fillStyle = '#6A4DF4'; ctx.fillRect(0, 0, W, 330);
+    ctx.fillStyle = 'rgba(255,255,255,0.11)'; ctx.beginPath(); ctx.arc(150, 330, 190, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.09)'; ctx.beginPath(); ctx.arc(W - 80, 20, 150, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    ctx.fillStyle = '#FFFFFF'; F(64, 600); ctx.fillText('التقرير الشهري', R, 128);
+    F(34, 400); ctx.fillText(BANK_INFO.fundName || 'صندوق صلة وإحسان العائلي', R, 190);
+    F(32, 400); ctx.fillText('شهر ' + r.label + ' ' + r.year + '  ·  ' + r.range, R, 246);
+
+    const blocks = [];
+    blocks.push({ h: r.revenue ? 250 : 170, paint: y => { cardBg(y, r.revenue ? 250 : 170); label('إيرادات الشهر', y + IN + 26); if (r.revenue) { bigNum(fmt(r.revenue.amount), y + IN + 120); F(28, 400); ctx.fillStyle = '#5B5F86'; ctx.fillText(r.revenue.count + ' حوالة هذا الشهر', iR, y + IN + 170); } else { F(32, 500); ctx.fillStyle = '#5B5F86'; ctx.fillText('غير متاحة حاليًا', iR, y + IN + 90); } } });
+    F(30, 400);
+    const expLines = r.exps.map(e => wrap(e.desc, CW - 2 * IN - 250));
+    const expH = r.exps.length === 0 ? IN * 2 + 26 + 70 : IN * 2 + 26 + 110 + expLines.reduce((a, l) => a + l.length * 44 + 22, 0);
+    blocks.push({ h: expH, paint: y => { cardBg(y, expH); label('المصروفات', y + IN + 26);
+      if (r.exps.length === 0) { F(34, 500); ctx.fillStyle = '#1E1B4B'; ctx.fillText('لا توجد مصروفات هذا الشهر', iR, y + IN + 90); return; }
+      bigNum(fmt(r.expTotal), y + IN + 120); let yy = y + IN + 190;
+      r.exps.forEach((e, i) => { F(30, 400); ctx.fillStyle = '#1E1B4B'; expLines[i].forEach((ln, k) => ctx.fillText(ln, iR, yy + k * 44));
+        ctx.textAlign = 'left'; F(30, 600); ctx.fillText(fmt(e.amount), iL, yy); ctx.textAlign = 'right'; yy += expLines[i].length * 44 + 22; }); } });
+    const lateH = r.late.length === 0 ? IN * 2 + 26 + 70 : IN * 2 + 26 + 40 + r.late.length * 74;
+    blocks.push({ h: lateH, paint: y => { cardBg(y, lateH); label('الأعضاء المتأخرون' + (r.late.length ? ' (' + r.late.length + ')' : ''), y + IN + 26);
+      if (r.late.length === 0) { F(34, 500); ctx.fillStyle = '#0B7A62'; ctx.fillText('لا يوجد متأخرون', iR, y + IN + 90); return; }
+      r.late.forEach((m, i) => { const yy = y + IN + 100 + i * 74; F(34, 500); ctx.fillStyle = '#1E1B4B'; ctx.fillText(m.name, iR, yy);
+        ctx.textAlign = 'left'; F(28, 500); ctx.fillStyle = '#B22D27'; ctx.fillText(m.months > 0 ? monthsLate(m.months) : 'متأخر', iL, yy); ctx.textAlign = 'right'; }); } });
+    let y = 360;
+    blocks.forEach(b => { b.paint(y); y += b.h + 28; });
+    ctx.textAlign = 'center'; F(26, 400); ctx.fillStyle = '#636890';
+    ctx.fillText('أُعدّ بتاريخ ' + r.today, W / 2, y + 36); ctx.fillText((BANK_INFO.fundName || 'صندوق صلة وإحسان العائلي') + '  ·  تُحدَّث البيانات تلقائيًا', W / 2, y + 78);
+    return y + 130;
+  }
+  const probe = createCanvas(W, 4000);
+  const H = draw(probe.getContext('2d'), 4000);
+  const cv = createCanvas(W, H);
+  draw(cv.getContext('2d'), H);
+  return cv;
+}
+
+function browserCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+async function prepareReportImage(r) {
+  window._reportBlob = null;
+  try {
+    if (document.fonts && document.fonts.load) await Promise.all([document.fonts.load('600 40px "Readex Pro"'), document.fonts.load('400 30px "Readex Pro"')]);
+    const cv = paintReport(r, browserCanvas);
+    cv.toBlob(b => { window._reportBlob = b; const btn = document.getElementById('reportImgBtn'); if (btn) btn.disabled = !b; }, 'image/png');
+  } catch (e) { const btn = document.getElementById('reportImgBtn'); if (btn) btn.style.display = 'none'; }
+}
+function copyTextAnywhere(text, done) {
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+  else fallbackCopy(text, done);
+}
+async function shareReportText() {
+  const r = buildReport(lastLoadedData); if (!r) return;
+  const text = reportText(r), btn = document.getElementById('reportShareBtn');
+  if (navigator.share) { try { await navigator.share({ title: 'التقرير الشهري', text: text }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  copyTextAnywhere(text, () => { const old = btn.innerHTML; btn.textContent = 'تم نسخ التقرير'; setTimeout(() => { btn.innerHTML = old; }, 1800); });
+}
+async function shareReportImage() {
+  const blob = window._reportBlob; if (!blob) return;
+  const file = new File([blob], 'monthly-report.png', { type: 'image/png' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: 'التقرير الشهري' }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = 'monthly-report.png'; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+function openReport() {
+  const r = buildReport(lastLoadedData);
+  const mount = document.getElementById('reportMount');
+  if (!r) { mount.innerHTML = '<div class="bylaws-overlay" id="reportOverlay"><div class="bylaws-sheet" role="dialog" aria-modal="true"><div class="bylaws-body"><div class="no-results">التقرير غير متاح حاليًا.</div></div></div></div>'; bindOverlayClose('reportOverlay', 'reportOverlay', closeReport); return; }
+  mount.innerHTML = `<div class="bylaws-overlay" id="reportOverlay"><div class="bylaws-sheet" role="dialog" aria-modal="true" aria-label="التقرير الشهري">
+    <div class="bylaws-head"><div class="bylaws-head-top"><div><div class="bylaws-kicker">قابل للمشاركة</div><div class="bylaws-title">التقرير الشهري</div></div><button class="bylaws-close" id="reportCloseBtn" type="button" aria-label="إغلاق">${ICONS.close}</button></div></div>
+    <div class="bylaws-body" id="reportBody">${reportBodyHtml(r)}</div>
+    <div class="sf-rep-actions"><button type="button" class="sf-btn pri" id="reportShareBtn">${ICONS.share}<span>مشاركة</span></button><button type="button" class="sf-btn" id="reportImgBtn" disabled>${ICONS.image || ''}<span>صورة</span></button></div>
+  </div></div>`;
+  document.body.style.overflow = 'hidden';
+  bindOverlayClose('reportOverlay', 'reportCloseBtn', closeReport);
+  document.getElementById('reportShareBtn').addEventListener('click', shareReportText);
+  document.getElementById('reportImgBtn').addEventListener('click', shareReportImage);
+  document.addEventListener('keydown', reportEscHandler);
+  prepareReportImage(r);
+}
+function reportEscHandler(e) { if (e.key === 'Escape') closeReport(); }
+function closeReport() {
+  document.getElementById('reportMount').innerHTML = '';
+  document.body.style.overflow = '';
+  document.removeEventListener('keydown', reportEscHandler);
 }
 
 function ringHtml(m, isLast) {
@@ -1049,16 +1252,24 @@ function statusMessageHtml(d, label) {
 function donutHtml(list, total) {
   const C = 2 * Math.PI * 56, agg = {};
   list.forEach(e => { const k = expenseKind(e.description); agg[k] = (agg[k] || 0) + (Number(e.amount) || 0); });
-  const sum = Object.values(agg).reduce((a, b) => a + b, 0) || 1;
+  const order = ['wed', 'diyat', 'fee', 'other'].filter(k => agg[k]);
+  const sum = order.reduce((a, k) => a + agg[k], 0) || 1;
+  // حد أدنى لطول القوس المعروض: البنود الصغيرة (كالرسوم البنكية) تظهر بلونها بدل أن تختفي،
+  // والنسب والمبالغ الحقيقية تبقى في القائمة بجانب الحلقة.
+  const MIN = 0.045 * C;
+  const lens = order.map(k => Math.max(agg[k] / sum * C, MIN));
+  const enlarged = order.some((k, i) => lens[i] > agg[k] / sum * C + 0.5);
+  const extra = lens.reduce((a, b) => a + b, 0) - C;
+  if (extra > 0) { const bi = lens.indexOf(Math.max.apply(null, lens)); lens[bi] -= extra; }
+  const GAP = order.length > 1 ? 2.2 : 0;
   let acc = 0, segs = '', legend = '';
-  ['wed', 'diyat', 'fee', 'other'].forEach(k => {
-    if (!agg[k]) return;
-    const len = agg[k] / sum * C;
-    if (len >= 1.2) segs += `<circle cx="75" cy="75" r="56" fill="none" stroke="${EXPENSE_KINDS[k].color}" stroke-width="16" stroke-dasharray="${len.toFixed(2)} ${(C - len).toFixed(2)}" stroke-dashoffset="${(-acc).toFixed(2)}"/>`;
+  order.forEach((k, i) => {
+    const len = lens[i], dash = Math.max(len - GAP, 0.8), pct = agg[k] / sum * 100;
+    segs += `<circle cx="75" cy="75" r="56" fill="none" stroke="${EXPENSE_KINDS[k].color}" stroke-width="16" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-acc).toFixed(2)}"/>`;
     acc += len;
-    legend += `<div><span><i style="background:${EXPENSE_KINDS[k].color}"></i>${EXPENSE_KINDS[k].label}</span><b>${fmtShort(agg[k])}</b></div>`;
+    legend += `<div><span><i style="background:${EXPENSE_KINDS[k].color}"></i>${EXPENSE_KINDS[k].label}<em>${pct < 1 ? '<1%' : Math.round(pct) + '%'}</em></span><b>${fmtShort(agg[k])}</b></div>`;
   });
-  return `<div class="sf-donut"><div class="dn"><svg width="150" height="150" viewBox="0 0 150 150" role="img" aria-label="توزيع المصروفات حسب النوع"><g transform="rotate(-90 75 75)"><circle cx="75" cy="75" r="56" fill="none" stroke="var(--surface-2)" stroke-width="16"/>${segs}</g></svg><div class="ct"><span class="sf-mu" style="font-size:11px">الإجمالي</span><b>${fmt(total)}</b></div></div><div class="sf-lg">${legend}</div></div>`;
+  return `<div class="sf-donut"><div class="dn"><svg width="150" height="150" viewBox="0 0 150 150" role="img" aria-label="توزيع المصروفات حسب النوع"><g transform="rotate(-90 75 75)"><circle cx="75" cy="75" r="56" fill="none" stroke="var(--surface-2)" stroke-width="16"/>${segs}</g></svg><div class="ct"><span class="sf-mu" style="font-size:11px">الإجمالي</span><b>${fmt(total)}</b></div></div><div class="sf-lg">${legend}</div></div>${enlarged ? '<div class="sf-mu" style="margin-top:12px;font-size:11.5px">البنود الصغيرة تُعرض بقوس أدنى ليظهر لونها، والنسب الفعلية في القائمة.</div>' : ''}`;
 }
 
 let lastLoadedData = null;
@@ -1099,8 +1310,8 @@ function renderApp(d) {
   const expList = Array.isArray(d.expensesList) ? d.expensesList : [];
   const expRows = expList.slice().reverse().map((e, idx) => {
     const k = EXPENSE_KINDS[expenseKind(e.description)];
-    const title = SHOW_EXPENSE_DESCRIPTIONS ? escapeHtml(e.description) : k.label;
-    return `<div class="sf-row cascade-item" data-cascade-idx="${idx}"><span class="tl ${k.tone}">${ICONS[k.icon]}</span><div class="sf-rb"><div class="sf-rn">${title}</div><div class="sf-rs">${arDate(e.date)}</div></div><div class="sf-amt">${fmt(e.amount)} ﷼</div></div>`;
+    const title = SHOW_EXPENSE_DESCRIPTIONS ? escapeHtml(String(e.description || '').replace(/\s+/g, ' ').trim()) : k.label;
+    return `<div class="sf-row cascade-item" data-cascade-idx="${idx}"><span class="tl ${k.tone}">${ICONS[k.icon]}</span><div class="sf-rb"><div class="sf-rn wrap">${title}</div><div class="sf-rs">${arDate(e.date)}</div></div><div class="sf-amt">${fmt(e.amount)} ﷼</div></div>`;
   }).join('');
 
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -1116,13 +1327,14 @@ function renderApp(d) {
       <div class="sf-acts">
         ${act('bylawsTriggerBtn', 'c1', ICONS.scroll, 'اللائحة')}
         ${act('bankCardTriggerBtn', 'c2', ICONS.bank, 'الحساب')}
-        ${act('infoTriggerBtn', 'c3', ICONS.info, 'الحالات')}
+        ${act('reportTriggerBtn', 'c3', ICONS.chart, 'التقرير')}
       </div>
       <div class="sf-sums">
         <div class="sf-sum reveal"><span class="tl ok s36">${ICONS.up}</span><div class="sf-mu" style="margin-top:10px">المساهمات</div><div class="v">${fmt(d.contributions)}</div></div>
         <div class="sf-sum reveal"><span class="tl late s36">${ICONS.down}</span><div class="sf-mu" style="margin-top:10px">السحوبات</div><div class="v">${fmt(d.expenses)}</div></div>
       </div>
       ${ringsCardHtml(completion)}
+      ${contribChartHtml(d.monthlyContributions, completion)}
       ${month.html}
       ${statusMessageHtml(d, month.label)}
       <div class="sf-tiles">${tiles.join('')}</div>
@@ -1160,7 +1372,12 @@ function renderApp(d) {
       <div class="sf-card">
         <div class="sf-row2"><div class="sf-t">معنى الحالات</div><span class="tl awaiting s36">${ICONS.info}</span></div>
         <div class="sf-mu" style="margin-top:10px;line-height:1.8">منتظم، بانتظار السداد، معلق، متأخر: شرح كل حالة ومتى تظهر.</div>
-        <button type="button" class="sf-btn" data-open="info">اقرأ الشرح</button>
+        <button type="button" class="sf-btn" id="infoTriggerBtn">اقرأ الشرح</button>
+      </div>
+      <div class="sf-card">
+        <div class="sf-row2"><div class="sf-t">التقرير الشهري</div><span class="tl ok s36">${ICONS.chart}</span></div>
+        <div class="sf-mu" style="margin-top:10px;line-height:1.8">إيرادات الشهر ومصروفاته والأعضاء المتأخرون، جاهز للمشاركة.</div>
+        <button type="button" class="sf-btn pri" data-open="report">عرض التقرير ومشاركته</button>
       </div>
       <div class="sf-card sf-row2">
         <div style="display:flex;align-items:center;gap:12px"><span class="tl awaiting">${ICONS.moonO}</span><div><div class="sf-t">المظهر الداكن</div><div class="sf-mu">يتبع جهازك افتراضيًا</div></div></div>
@@ -1177,9 +1394,10 @@ function renderApp(d) {
   initSectionBackground();
   document.getElementById('bylawsTriggerBtn').addEventListener('click', openBylaws);
   document.getElementById('bankCardTriggerBtn').addEventListener('click', openBankCard);
+  document.getElementById('reportTriggerBtn').addEventListener('click', openReport);
   document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click', () => {
     const k = b.getAttribute('data-open');
-    if (k === 'bylaws') openBylaws(); else if (k === 'bank') openBankCard(); else if (k === 'info') document.getElementById('infoTriggerBtn').click();
+    if (k === 'bylaws') openBylaws(); else if (k === 'bank') openBankCard(); else if (k === 'report') openReport();
   }));
   const sw = document.getElementById('themeSwitch');
   if (sw) sw.addEventListener('click', () => {
