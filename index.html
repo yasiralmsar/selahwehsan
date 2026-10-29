@@ -521,6 +521,26 @@ section { margin-top: var(--sp-7); scroll-margin-top: var(--sp-5); }
 .admin-divider { margin: 24px 0; border: none; border-top: 1px solid var(--border); }
 .admin-action-select { width: 100%; padding: 13px 14px; border-radius: 10px; border: 1px solid var(--border-strong);
   font-family: inherit; font-size: 15.5px; font-weight: 700; background: var(--surface-2); color: var(--text-1); margin-bottom: 20px; }
+
+/* ===== تعديل ترتيب الحوالات بلا اسم ===== */
+.nl-box { margin-top: 14px; }
+.nl-card { border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px; margin-bottom: 14px; background: var(--surface-2); }
+.nl-card h4 { font-size: 14px; font-weight: 800; color: var(--text-1); margin: 0 0 8px; }
+.nl-next { font-size: 14px; color: var(--text-1); line-height: 1.8; }
+.nl-row { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-top: 1px solid var(--border); }
+.nl-row:first-of-type { border-top: 0; }
+.nl-row.cur { background: var(--gold-dim); border-radius: 10px; padding-inline: 6px; }
+.nl-n { width: 24px; text-align: center; font-weight: 800; color: var(--text-2); font-size: 13px; flex: 0 0 auto; }
+.nl-sel { flex: 1; min-width: 0; padding: 9px 10px !important; font-size: 14px; }
+.nl-btn { width: 36px; height: 36px; flex: 0 0 auto; border-radius: 10px; border: 1px solid var(--border-strong); background: transparent; color: var(--text-1); font-size: 15px; cursor: pointer; font-family: inherit; }
+.nl-btn:disabled { opacity: .35; cursor: not-allowed; }
+.nl-btn.del { color: var(--late); }
+.nl-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; flex: 0 0 auto; }
+.nl-tag.done { background: var(--ok-dim); color: var(--ok); }
+.nl-tag.now { background: var(--pending-dim); color: var(--pending); }
+.nl-inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.nl-inline .admin-action-select { flex: 1; min-width: 140px; }
+.nl-dirty { color: var(--pending); font-weight: 700; font-size: 13px; margin-top: 8px; }
 .admin-section { display: none; }
 .admin-section.active { display: block; }
 .admin-note.danger-note { color: var(--late); }
@@ -2306,9 +2326,9 @@ function openAdminPanel() {
         <div class="admin-section" data-section="namelessOrder">
           <div class="admin-field">
             <label>ترتيب الحوالات بلا اسم</label>
-            <div class="admin-note">من 27 إلى 2 من الشهر التالي: الحوالة التي لا يكتب البنك اسم صاحبها تُسجَّل تلقائيًا على الأعضاء بالترتيب، ويبدأ الدور من الأول في كل نافذة جديدة. هذا العرض للمراجعة فقط.</div>
+            <div class="admin-note">من 24 إلى 2 من الشهر التالي: الحوالة التي لا يكتب البنك اسم صاحبها تُسجَّل تلقائيًا على الأعضاء بالترتيب، ويبدأ الدور من الأول في كل نافذة جديدة. من هنا تعدّل قائمة الترتيب وتحرّك الدور الحالي يدويًا.</div>
           </div>
-          <div class="admin-actions"><button class="admin-btn" id="showNamelessOrderBtn">عرض الترتيب الحالي</button></div>
+          <div class="admin-actions"><button class="admin-btn" id="showNamelessOrderBtn">عرض الترتيب وتعديله</button></div>
           <div id="namelessOrderMsg"></div>
         </div>
 
@@ -2343,6 +2363,7 @@ function openAdminPanel() {
   document.getElementById('deleteExpenseBtn').addEventListener('click', handleDeleteExpense);
   document.getElementById('setSubscriptionAmountBtn').addEventListener('click', handleSetSubscriptionAmount);
   document.getElementById('showNamelessOrderBtn').addEventListener('click', handleShowNamelessOrder);
+  initNamelessOrderUi_();
 
   const actionSelect = document.getElementById('adminActionSelect');
   const showSection = (val) => {
@@ -2875,36 +2896,185 @@ async function handleSetSubscriptionAmount() {
   } finally { btn.disabled = false; }
 }
 
+// ===== ترتيب الحوالات بلا اسم: عرض + تعديل يدوي =====
+let namelessData = null;   // آخر حالة محفوظة من السكربت
+let namelessDraft = null;  // قائمة معدّلة محليًا (غير محفوظة بعد)
+let namelessFlash = '';    // رسالة آخر إجراء
+
+function namelessMsgEl_() { return document.getElementById('namelessOrderMsg'); }
+function namelessFlashSet_(text, type) { namelessFlash = text ? '<div class="admin-msg ' + (type || 'success') + '">' + escapeHtml(text) + '</div>' : ''; }
+
+async function namelessPost_(payload) {
+  const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify(Object.assign({ adminKey: adminKeyValue }, payload)) });
+  const result = await resp.json();
+  recordAdminKeyOutcome_(result);
+  return result;
+}
+
+async function loadNamelessOrder_() {
+  const result = await namelessPost_({ action: 'getAdminData' });
+  if (!result.success) throw new Error(result.error || 'خطأ غير معروف');
+  namelessData = result.namelessOrder || null;
+  namelessDraft = null;
+}
+
 async function handleShowNamelessOrder() {
-  const msgEl = document.getElementById('namelessOrderMsg');
+  const msgEl = namelessMsgEl_();
   if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً.</div>'; return; }
   if (isAdminKeyCachedInvalid_()) { msgEl.innerHTML = ADMIN_KEY_CACHED_INVALID_MSG; return; }
   const btn = document.getElementById('showNamelessOrderBtn');
   btn.disabled = true;
   msgEl.innerHTML = '<div class="admin-msg">جاري التحميل...</div>';
   try {
-    const resp = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'getAdminData', adminKey: adminKeyValue }) });
-    const result = await resp.json();
-    recordAdminKeyOutcome_(result);
-    if (!result.success) {
-      msgEl.innerHTML = '<div class="admin-msg error">فشل التحميل: ' + escapeHtml(result.error || 'خطأ غير معروف') + '</div>';
-      return;
-    }
-    const o = result.namelessOrder;
-    if (!o || !o.windowKey) {
-      msgEl.innerHTML = '<div class="admin-msg">لا توجد نافذة ترتيب بعد. تبدأ من يوم 27.</div>';
-      return;
-    }
-    const done = o.nextIndex >= o.total;
-    const status = o.inWindowNow ? 'النافذة مفتوحة الآن' : 'النافذة مغلقة حاليًا (آخر نافذة)';
-    const nextLine = done
-      ? `اكتمل ترتيب ${o.total} عضوًا — أي حوالة زائدة بلا اسم تذهب لقائمة الانتظار.`
-      : `الدور الحالي: <strong>${escapeHtml(o.nextName)}</strong> (رقم ${o.nextIndex + 1} من ${o.total})`;
-    const rows = (o.assigned || []).map(a => `<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;"><span>${a.position}. ${escapeHtml(a.name)}</span><span>${escapeHtml(String(a.amount))} ريال</span></div>`).join('');
-    msgEl.innerHTML = `<div class="admin-msg success"><div style="margin-bottom:6px;">${status} — نافذة ${escapeHtml(o.windowKey)}</div><div style="margin-bottom:8px;">${nextLine}</div>${rows || '<div style="font-size:13px;">لم تُسجَّل أي حوالة بالترتيب في هذه النافذة بعد.</div>'}</div>`;
+    await loadNamelessOrder_();
+    namelessFlash = '';
+    renderNamelessOrder_();
   } catch (err) {
-    msgEl.innerHTML = '<div class="admin-msg error">تعذّر الاتصال بالسكربت: ' + escapeHtml(err.message) + '</div>';
+    msgEl.innerHTML = '<div class="admin-msg error">تعذّر التحميل: ' + escapeHtml(err.message) + '</div>';
   } finally { btn.disabled = false; }
+}
+
+function namelessCurrentList_() { return namelessDraft || (namelessData && namelessData.order) || []; }
+function namelessIsDirty_() {
+  return !!namelessDraft && namelessDraft.join('\u0001') !== ((namelessData && namelessData.order) || []).join('\u0001');
+}
+
+function renderNamelessOrder_() {
+  const msgEl = namelessMsgEl_();
+  const o = namelessData;
+  if (!o || !o.windowKey && !(o.order && o.order.length)) {
+    msgEl.innerHTML = '<div class="admin-msg">لا توجد بيانات ترتيب بعد.</div>';
+    return;
+  }
+  const saved = o.order || [];
+  const list = namelessCurrentList_();
+  const dirty = namelessIsDirty_();
+  const members = o.sheetMembers || [];
+  const total = saved.length;
+  const idx = Math.min(Number(o.nextIndex) || 0, total);
+  const done = idx >= total;
+  const status = o.windowKey ? (o.inWindowNow ? 'النافذة مفتوحة الآن' : 'النافذة مغلقة حاليًا (آخر نافذة)') + ' — نافذة ' + escapeHtml(o.windowKey) : 'لا توجد نافذة بعد (تبدأ من يوم 24)';
+  const nextLine = done
+    ? 'اكتمل ترتيب ' + total + ' عضوًا — أي حوالة زائدة بلا اسم تذهب لقائمة الانتظار.'
+    : 'الدور الحالي: <strong>' + escapeHtml(saved[idx]) + '</strong> (رقم ' + (idx + 1) + ' من ' + total + ')';
+  const assigned = (o.assigned || []).map(a => '<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;"><span>' + a.position + '. ' + escapeHtml(a.name) + '</span><span>' + escapeHtml(String(a.amount)) + ' ريال</span></div>').join('');
+
+  const used = {};
+  list.forEach(n => { used[n] = true; });
+  const rows = list.map((name, i) => {
+    const opts = members.filter(m => m === name || !used[m]);
+    if (opts.indexOf(name) === -1) opts.unshift(name);
+    const optHtml = opts.map(m => '<option value="' + escapeHtml(m) + '"' + (m === name ? ' selected' : '') + '>' + escapeHtml(m) + '</option>').join('');
+    const isDone = !dirty && o.windowKey && i < idx;
+    const isNow = !dirty && !done && i === idx;
+    const tag = isNow ? '<span class="nl-tag now">الدور الآن</span>' : isDone ? '<span class="nl-tag done">تم</span>' : '';
+    return '<div class="nl-row' + (isNow ? ' cur' : '') + '" data-i="' + i + '"><span class="nl-n">' + (i + 1) + '</span>'
+      + '<select class="admin-action-select nl-sel" data-act="rename" data-i="' + i + '">' + optHtml + '</select>' + tag
+      + '<button type="button" class="nl-btn" data-act="up" data-i="' + i + '"' + (i === 0 ? ' disabled' : '') + ' aria-label="للأعلى">↑</button>'
+      + '<button type="button" class="nl-btn" data-act="down" data-i="' + i + '"' + (i === list.length - 1 ? ' disabled' : '') + ' aria-label="للأسفل">↓</button>'
+      + '<button type="button" class="nl-btn del" data-act="del" data-i="' + i + '"' + (list.length <= 1 ? ' disabled' : '') + ' aria-label="حذف">✕</button></div>';
+  }).join('');
+  const free = members.filter(m => !used[m]);
+  const addHtml = free.length
+    ? '<div class="nl-inline"><select class="admin-action-select" id="nlAddSel">' + free.map(m => '<option value="' + escapeHtml(m) + '">' + escapeHtml(m) + '</option>').join('') + '</select><button type="button" class="admin-btn secondary" data-act="add">إضافة للقائمة</button></div>'
+    : '<div class="admin-note">كل أعضاء الشيت موجودون في القائمة.</div>';
+  const turnOpts = saved.map((n, i) => '<option value="' + i + '"' + (i === idx ? ' selected' : '') + '>' + (i + 1) + '. ' + escapeHtml(n) + '</option>').join('') + '<option value="' + total + '"' + (done ? ' selected' : '') + '>اكتمل الترتيب</option>';
+  const lock = dirty ? ' disabled' : '';
+
+  msgEl.innerHTML = '<div class="nl-box">' + namelessFlash
+    + '<div class="nl-card"><h4>الحالة</h4><div class="admin-note" style="margin:0 0 6px;">' + status + '</div><div class="nl-next">' + nextLine + '</div>'
+    + (assigned ? '<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:6px;">' + assigned + '</div>' : '<div class="admin-note">لم تُسجَّل حوالات بلا اسم في هذه النافذة بعد.</div>') + '</div>'
+    + '<div class="nl-card"><h4>تحريك الدور</h4>'
+    + '<div class="nl-inline" style="margin-top:0;"><button type="button" class="admin-btn secondary" data-act="ptr-back"' + lock + '>رجوع دور</button><button type="button" class="admin-btn secondary" data-act="ptr-skip"' + lock + '>تخطي هذا الدور</button></div>'
+    + '<div class="nl-inline"><select class="admin-action-select" id="nlTurnSel"' + lock + '>' + turnOpts + '</select><button type="button" class="admin-btn secondary" data-act="ptr-set"' + lock + '>اجعله الدور القادم</button></div>'
+    + '<div class="nl-inline"><button type="button" class="admin-btn danger" data-act="ptr-reset"' + lock + '>تصفير الدور (من الأول)</button></div>'
+    + '<div class="admin-note">الرجوع والتحديد لا يلغيان ما سُجّل سابقًا، وإنما يغيّران من عليه الدور في الحوالة القادمة فقط.' + (dirty ? ' <span style="color:var(--pending)">احفظ تعديلات القائمة أو تراجع عنها أولًا.</span>' : '') + '</div></div>'
+    + '<div class="nl-card"><h4>قائمة الترتيب' + (o.isCustom ? ' <span class="nl-tag now">مخصّصة</span>' : '') + '</h4>' + rows + addHtml
+    + (dirty ? '<div class="nl-dirty">لديك تعديلات غير محفوظة.</div>' : '')
+    + '<div class="nl-inline"><button type="button" class="admin-btn" data-act="save"' + (dirty ? '' : ' disabled') + '>حفظ الترتيب</button><button type="button" class="admin-btn secondary" data-act="undo"' + (dirty ? '' : ' disabled') + '>تراجع عن التعديلات</button><button type="button" class="admin-btn secondary" data-act="restore"' + (o.isCustom || dirty ? '' : ' disabled') + '>استعادة الترتيب الأصلي</button></div>'
+    + '<div class="admin-note">يبقى المؤشر على موضعه (رقم الدور) عند إعادة الترتيب: العضو الذي يقع في هذا الموضع بعد الحفظ هو من عليه الدور. يُسجَّل كل تعديل في ورقة «سجل ترتيب الحوالات».</div></div></div>';
+}
+
+function namelessEnsureDraft_() { if (!namelessDraft) namelessDraft = ((namelessData && namelessData.order) || []).slice(); }
+
+async function namelessAction_(act, el) {
+  const msgEl = namelessMsgEl_();
+  if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً.</div>'; return; }
+  const i = el && el.getAttribute ? Number(el.getAttribute('data-i')) : NaN;
+
+  // تعديلات محلية على المسودة (بلا اتصال)
+  if (act === 'up' || act === 'down' || act === 'del' || act === 'add' || act === 'rename') {
+    namelessEnsureDraft_();
+    const d = namelessDraft;
+    if (act === 'up' && i > 0) { const t = d[i - 1]; d[i - 1] = d[i]; d[i] = t; }
+    else if (act === 'down' && i < d.length - 1) { const t = d[i + 1]; d[i + 1] = d[i]; d[i] = t; }
+    else if (act === 'del' && d.length > 1) d.splice(i, 1);
+    else if (act === 'add') { const sel = document.getElementById('nlAddSel'); if (sel && sel.value) d.push(sel.value); }
+    else if (act === 'rename') { d[i] = el.value; }
+    namelessFlash = '';
+    renderNamelessOrder_();
+    return;
+  }
+  if (act === 'undo') { namelessDraft = null; namelessFlash = ''; renderNamelessOrder_(); return; }
+
+  let payload, confirmMsg, okText;
+  const o = namelessData || {};
+  const saved = o.order || [];
+  const idx = Math.min(Number(o.nextIndex) || 0, saved.length);
+  if (act === 'save') {
+    payload = { action: 'setNamelessOrderList', list: namelessDraft };
+    confirmMsg = 'حفظ قائمة الترتيب الجديدة؟\n\n' + namelessDraft.map((n, k) => (k + 1) + '. ' + n).join('\n');
+    okText = 'تم حفظ قائمة الترتيب.';
+  } else if (act === 'restore') {
+    payload = { action: 'setNamelessOrderList', restoreDefault: true };
+    confirmMsg = 'استعادة قائمة الترتيب الأصلية (المكتوبة في السكربت)؟ ستُلغى القائمة المخصّصة.';
+    okText = 'تمت استعادة الترتيب الأصلي.';
+  } else if (act === 'ptr-skip') {
+    payload = { action: 'setNamelessPointer', mode: 'skip' };
+    confirmMsg = 'تخطي دور «' + (saved[idx] || '') + '» دون تسجيل أي حوالة؟';
+    okText = 'تم تخطي الدور.';
+  } else if (act === 'ptr-back') {
+    payload = { action: 'setNamelessPointer', mode: 'back' };
+    confirmMsg = 'الرجوع دورًا واحدًا؟ لن يُلغى ما سُجّل سابقًا.';
+    okText = 'تم الرجوع دورًا.';
+  } else if (act === 'ptr-set') {
+    const sel = document.getElementById('nlTurnSel');
+    payload = { action: 'setNamelessPointer', mode: 'set', index: Number(sel.value) };
+    confirmMsg = 'جعل الدور القادم: ' + (sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '') + '؟';
+    okText = 'تم تحديد الدور.';
+  } else if (act === 'ptr-reset') {
+    payload = { action: 'setNamelessPointer', mode: 'reset' };
+    confirmMsg = 'تصفير الدور ليبدأ من العضو الأول؟';
+    okText = 'تم تصفير الدور.';
+  } else return;
+  if (!confirm(confirmMsg)) return;
+
+  document.querySelectorAll('#namelessOrderMsg button, #namelessOrderMsg select').forEach(x => { x.disabled = true; });
+  try {
+    const result = await namelessPost_(payload);
+    if (!result.success) { namelessFlashSet_(result.error || 'فشل التنفيذ', 'error'); }
+    else {
+      await loadNamelessOrder_();
+      namelessFlashSet_(okText, 'success');
+    }
+  } catch (err) {
+    namelessFlashSet_('تعذّر الاتصال بالسكربت: ' + err.message, 'error');
+  }
+  renderNamelessOrder_();
+}
+
+function initNamelessOrderUi_() {
+  const box = namelessMsgEl_();
+  if (!box || box._nlBound) return;
+  box._nlBound = true;
+  box.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-act]');
+    if (b && !b.disabled) namelessAction_(b.getAttribute('data-act'), b);
+  });
+  box.addEventListener('change', (e) => {
+    const sel = e.target.closest('select[data-act="rename"]');
+    if (sel) namelessAction_('rename', sel);
+  });
 }
 
 function showAdminMsg(text, type) { const el = document.getElementById('adminMsg'); if (el) el.innerHTML = `<div class="admin-msg ${type}">${text}</div>`; }
