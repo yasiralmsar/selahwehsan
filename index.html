@@ -651,6 +651,15 @@ main.container{max-width:560px;margin:0 auto;padding:6px 22px 150px}
 .tl.ok{background:var(--ok-dim);color:var(--ok)}.tl.late{background:var(--late-dim);color:var(--late)}.tl.pending{background:var(--pending-dim);color:var(--pending)}.tl.new{background:var(--new-member-dim);color:var(--new-member)}.tl.awaiting{background:var(--awaiting-dim);color:var(--awaiting)}
 .sf-pill{font-size:11.5px;font-weight:500;padding:6px 12px;border-radius:14px;white-space:nowrap}
 .sf-pill.ok{background:var(--ok-dim);color:var(--ok)}.sf-pill.late{background:var(--late-dim);color:var(--late)}.sf-pill.pending{background:var(--pending-dim);color:var(--pending)}.sf-pill.new{background:var(--new-member-dim);color:var(--new-member)}.sf-pill.awaiting{background:var(--awaiting-dim);color:var(--awaiting)}
+.sf-cr{display:flex;align-items:center;gap:18px}
+.sf-cr .cw{position:relative;width:124px;height:124px;flex:0 0 auto;border-radius:50%;background:var(--surface);box-shadow:inset 6px 6px 13px var(--sh-dk),inset -6px -6px 13px var(--sh-lt)}
+.sf-cr .cw svg{display:block}
+.sf-cr .cw .ct{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.sf-cr .cw .ct b{font-size:24px;font-weight:600;line-height:1.1}
+.sf-cr .cw .ct span{font-size:11px;margin-top:2px;color:var(--text-2)}
+.sf-cr .ci{flex:1;min-width:0;display:flex;flex-direction:column;gap:12px}
+.sf-cr .ci .k{font-size:11.5px;color:var(--text-2)}
+.sf-cr .ci .vv{font-size:17px;font-weight:600;color:var(--text-1);margin-top:2px}
 .sf-rings{display:flex;justify-content:space-between;margin-top:16px}
 .sf-ring{display:flex;flex-direction:column;align-items:center;gap:8px}
 .sf-well{position:relative;width:58px;height:58px;border-radius:50%;background:var(--surface);box-shadow:inset 5px 5px 11px var(--sh-dk),inset -5px -5px 11px var(--sh-lt)}
@@ -781,7 +790,7 @@ footer{text-align:center;color:var(--text-3)!important;font-size:12px;padding:0 
 <nav class="tabbar" id="tabbar" aria-label="التنقل الرئيسي">
   <div class="tabbar-inner">
     <a href="#home" class="tab-link" data-tab="home" data-icon="home">الرئيسية</a>
-    <a href="#members" class="tab-link" data-tab="members" data-icon="users">الأعضاء</a>
+    <a href="#members" class="tab-link" data-tab="members" data-icon="contrib">المساهمات</a>
     <a href="#expenses" class="tab-link" data-tab="expenses" data-icon="receipt">المصروفات</a>
     <a href="#more" class="tab-link" data-tab="more" data-icon="grid">المزيد</a>
   </div>
@@ -800,6 +809,7 @@ footer{text-align:center;color:var(--text-3)!important;font-size:12px;padding:0 
    ظهور مطابق على كل الأجهزة والتحكم الكامل باللون والحجم.
    ========================================================================= */
 const ICONS = {
+  contrib: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" opacity=".3"/><path d="M12 3a9 9 0 0 1 8.6 6.3"/><path d="M20.6 9.3A9 9 0 0 1 12 21"/><path d="M12 8v8M9.5 10.2c0-1 1-1.7 2.5-1.7s2.5.7 2.5 1.7-1 1.5-2.5 1.8-2.5.8-2.5 1.8 1 1.7 2.5 1.7 2.5-.7 2.5-1.7" stroke-width="1.5"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
   bank: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="21" x2="21" y2="21"/><line x1="5" y1="21" x2="5" y2="10"/><line x1="19" y1="21" x2="19" y2="10"/><line x1="9" y1="21" x2="9" y2="10"/><line x1="15" y1="21" x2="15" y2="10"/><polygon points="12 3 3 8 21 8"/></svg>',
   scroll: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>',
@@ -1082,7 +1092,7 @@ function contribChartHtml(list, completion) {
     const cur = i === list.length - 1 && lastIncomplete;
     return `<div class="sf-bar${cur ? ' cur' : ''}" title="${escapeHtml(x.label)}: ${fmt(amt)} (${Number(x.count) || 0})"><span class="v">${amt === 0 ? '0' : (amt / 1000).toFixed(1)}</span><div class="b" style="height:${h}px"></div><span class="m">${escapeHtml(x.label)}</span></div>`;
   }).join('');
-  return `<div class="sf-card reveal"><div class="sf-row2"><div class="sf-t">المساهمات حسب الشهر المالي</div><span class="sf-mu">ألف ريال</span></div><div class="sf-bars">${bars}</div>${lastIncomplete ? '<div class="sf-mu" style="margin-top:10px;font-size:11.5px">العمود المتقطع دورة لم يكتمل تحصيلها بعد.</div>' : ''}</div>`;
+  return `<div class="sf-card reveal"><div class="sf-row2"><div class="sf-t">المساهمات حسب الشهر المالي</div><span class="sf-mu">ألف ريال</span></div><div class="sf-bars">${bars}</div>${lastIncomplete ? '<div class="sf-mu" style="margin-top:10px;font-size:11.5px">العمود المتقطع شهر مالي لم يكتمل تحصيله بعد.</div>' : ''}</div>`;
 }
 
 /* ===== التقرير الشهري (قابل للمشاركة): إيرادات الشهر الحالي + مصروفاته إن وُجدت + المتأخرون فقط ===== */
@@ -1254,6 +1264,29 @@ function ringHtml(m, isLast) {
   return `<div class="sf-ring" title="${title}"><div class="sf-well"><svg width="58" height="58" viewBox="0 0 58 58" aria-hidden="true">${g}</svg><span class="pc" style="color:${cls}">${pct}%</span></div><span class="sf-mu" style="font-size:11.5px">${escapeHtml(m.label)}</span></div>`;
 }
 
+function contribRingCardHtml(d, completion) {
+  if (!Array.isArray(completion) || completion.length < 1) return '';
+  const m = completion[completion.length - 1];
+  const pct = clampPct(m.pct), done = !!m.complete || pct >= 100;
+  const C = 2 * Math.PI * 50;
+  const row = (Array.isArray(d.monthlyContributions) ? d.monthlyContributions : []).find(r => r && r.monthKey === m.monthKey);
+  const amt = row ? Number(row.amount) || 0 : null;
+  const col = done ? 'var(--ok)' : 'var(--pending)';
+  const arc = pct > 0 ? `<circle cx="62" cy="62" r="50" fill="none" stroke="url(#sfG2)" stroke-width="11" stroke-linecap="round" stroke-dasharray="${(pct / 100 * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 62 62)"/>` : '';
+  const track = done ? '' : '<circle cx="62" cy="62" r="50" fill="none" style="stroke:var(--pending)" stroke-opacity="0.35" stroke-width="3" stroke-dasharray="3 6" stroke-linecap="round"/>';
+  return `<div class="sf-card reveal">
+    <div class="sf-row2"><div class="sf-t">مساهمات شهر ${escapeHtml(m.label)}</div><span style="font-size:12px;font-weight:500;color:${col}">${done ? 'اكتمل التحصيل' : 'قيد التحصيل'}</span></div>
+    <div class="sf-cr" style="margin-top:14px">
+      <div class="cw"><svg width="124" height="124" viewBox="0 0 124 124" role="img" aria-label="اكتمال مساهمات الشهر ${pct}%"><defs><linearGradient id="sfG2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8B6CFF"/><stop offset="1" stop-color="#4F5BE8"/></linearGradient></defs>${track}${arc}</svg>
+        <div class="ct"><b style="color:${col}">${pct}%</b><span>من المطلوب</span></div></div>
+      <div class="ci">
+        <div><div class="k">سدّدوا</div><div class="vv">${m.covered} من ${m.required} عضوًا</div></div>
+        ${amt !== null ? `<div><div class="k">المحصّل خلال هذا الشهر المالي</div><div class="vv">${fmt(amt)} ريال</div></div>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
 function ringsCardHtml(completion) {
   if (!Array.isArray(completion) || completion.length < 2) return '';
   const last = completion.length - 1;
@@ -1266,7 +1299,7 @@ function ringsCardHtml(completion) {
       <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="sfG1" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8B6CFF"/><stop offset="1" stop-color="#4C6FFF"/></linearGradient></defs></svg>
       <div class="sf-row2"><div class="sf-t">اكتمال آخر ${completion.length} أشهر</div>${streak > 0 ? `<span class="sf-pill ok">${streakText(streak)}</span>` : ''}</div>
       <div class="sf-rings">${completion.map((m, k) => ringHtml(m, k === last)).join('')}</div>
-      <div class="sf-legend"><span><i style="background:#6A4DF4"></i>دورة مكتملة</span>${hasPast ? '<span><i style="background:var(--late)"></i>دورة ناقصة</span>' : ''}${hasCurrent ? '<span><i style="border:2px dashed var(--pending)"></i>دورة قيد التحصيل</span>' : ''}</div>
+      <div class="sf-legend"><span><i style="background:#6A4DF4"></i>شهر مكتمل</span>${hasPast ? '<span><i style="background:var(--late)"></i>شهر ناقص</span>' : ''}${hasCurrent ? '<span><i style="border:2px dashed var(--pending)"></i>شهر قيد التحصيل</span>' : ''}</div>
     </div>`;
 }
 
@@ -1436,7 +1469,9 @@ function renderApp(d) {
     </section>
 
     <section class="sf-panel reveal" data-panel="members" id="membersSection">
-      <div class="sf-head"><h2>الأعضاء</h2><p>${counts.all} عضوًا${month.label ? ' · شهر ' + escapeHtml(month.label) : ''}</p></div>
+      <div class="sf-head"><h2>المساهمات</h2><p>${counts.all} عضوًا${month.label ? ' · شهر ' + escapeHtml(month.label) : ''}</p></div>
+      ${contribRingCardHtml(d, completion)}
+      <div class="sf-head" style="padding-top:18px"><div class="sf-t">الأعضاء</div></div>
       <label class="sf-search">${ICONS.search}<input type="search" id="searchInput" placeholder="ابحث عن اسم عضو أو حالة" aria-label="ابحث عن اسم عضو أو حالة"></label>
       <div class="sf-chips" id="memberChips">${chipsHtml}</div>
       <div class="sf-list" id="tableBody">${rowsHtml}</div>
