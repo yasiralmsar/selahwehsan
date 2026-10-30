@@ -1268,17 +1268,27 @@ function contribRingCardHtml(d, completion) {
   if (!Array.isArray(completion) || completion.length < 1) return '';
   const m = completion[completion.length - 1];
   const pct = clampPct(m.pct), done = !!m.complete || pct >= 100;
-  const col = done ? 'var(--ok)' : 'var(--pending)';
   const C = 2 * Math.PI * 50;
-  const arc = pct > 0 ? `<circle cx="66" cy="66" r="50" fill="none" stroke="url(#sfG2)" stroke-width="11" stroke-linecap="round" stroke-dasharray="${(pct / 100 * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 66 66)"/>` : '';
-  const dash = done ? '' : '<circle cx="66" cy="66" r="50" fill="none" style="stroke:var(--pending)" stroke-opacity="0.35" stroke-width="3" stroke-dasharray="3 6" stroke-linecap="round"/>';
-  return `<div class="sf-card reveal" style="text-align:center">
-    <div class="sf-donut" style="justify-content:center"><div class="dn"><svg width="150" height="150" viewBox="0 0 150 150" role="img" aria-label="إجمالي المساهمات"><defs><linearGradient id="sfG2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8B6CFF"/><stop offset="1" stop-color="#4F5BE8"/></linearGradient></defs><circle cx="75" cy="75" r="56" fill="none" stroke="url(#sfG2)" stroke-width="16"/></svg><div class="ct"><span class="sf-mu" style="font-size:11px">الإجمالي</span><b>${fmt(d.contributions)}</b></div></div></div>
-    <div style="height:1px;background:var(--border);margin:18px 0 14px"></div>
+  const row = (Array.isArray(d.monthlyContributions) ? d.monthlyContributions : []).find(r => r && r.monthKey === m.monthKey);
+  const amt = row ? Number(row.amount) || 0 : null;
+  const col = done ? 'var(--ok)' : 'var(--pending)';
+  const mm = Number(String(m.monthKey || '').split('-')[1]) || 0;
+  const range = mm ? `24 ${MONTHS_AR[mm - 1]} – 23 ${MONTHS_AR[mm % 12]}` : '';
+  const arc = pct > 0 ? `<circle cx="62" cy="62" r="50" fill="none" stroke="url(#sfG2)" stroke-width="11" stroke-linecap="round" stroke-dasharray="${(pct / 100 * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 62 62)"/>` : '';
+  const track = done ? '' : '<circle cx="62" cy="62" r="50" fill="none" style="stroke:var(--pending)" stroke-opacity="0.35" stroke-width="3" stroke-dasharray="3 6" stroke-linecap="round"/>';
+  return `<div class="sf-card reveal">
+    <div class="sf-mu">إجمالي المساهمات</div>
+    <div style="font-size:26px;font-weight:600;color:var(--text-1);margin-top:2px">${fmt(d.contributions)} <span class="sf-mu" style="font-size:13px;font-weight:500">ريال</span></div>
+    <div class="sf-mu" style="font-size:11.5px;margin-top:2px">منذ بداية الصندوق</div>
+    <div style="height:1px;background:var(--border);margin:16px 0 14px"></div>
     <div class="sf-row2"><div class="sf-t">شهر ${escapeHtml(m.label)}</div><span style="font-size:12px;font-weight:500;color:${col}">${done ? 'اكتمل التحصيل' : 'قيد التحصيل'}</span></div>
-    <div class="sf-cr" style="justify-content:center;margin-top:14px">
-      <div class="cw" style="width:132px;height:132px"><svg width="132" height="132" viewBox="0 0 132 132" role="img" aria-label="اكتمال مساهمات الشهر ${pct}%">${dash}${arc}</svg>
-        <div class="ct"><b style="color:${col}">${pct}%</b><span>${m.covered} من ${m.required} سدّدوا</span></div></div>
+    <div class="sf-cr" style="margin-top:14px">
+      <div class="cw"><svg width="124" height="124" viewBox="0 0 124 124" role="img" aria-label="اكتمال مساهمات الشهر ${pct}%"><defs><linearGradient id="sfG2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8B6CFF"/><stop offset="1" stop-color="#4F5BE8"/></linearGradient></defs>${track}${arc}</svg>
+        <div class="ct"><b style="color:${col}">${pct}%</b><span>من المطلوب</span></div></div>
+      <div class="ci">
+        <div><div class="k">سدّدوا</div><div class="vv">${m.covered} من ${m.required} عضوًا</div></div>
+        ${amt !== null ? `<div><div class="k">المستلم من الحوالات</div><div class="vv">${fmt(amt)} ريال</div><div class="k" style="font-size:11px;margin-top:1px;white-space:nowrap">${range ? 'من ' + range.replace(' – ', ' إلى ') : 'خلال هذا الشهر المالي'}</div></div>` : ''}
+      </div>
     </div>
   </div>`;
 }
