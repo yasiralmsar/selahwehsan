@@ -809,7 +809,7 @@ footer{text-align:center;color:var(--text-3)!important;font-size:12px;padding:0 
    ظهور مطابق على كل الأجهزة والتحكم الكامل باللون والحجم.
    ========================================================================= */
 const ICONS = {
-  contrib: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" opacity=".3"/><path d="M12 3a9 9 0 0 1 8.6 6.3"/><path d="M20.6 9.3A9 9 0 0 1 12 21"/><path d="M12 8v8M9.5 10.2c0-1 1-1.7 2.5-1.7s2.5.7 2.5 1.7-1 1.5-2.5 1.8-2.5.8-2.5 1.8 1 1.7 2.5 1.7 2.5-.7 2.5-1.7" stroke-width="1.5"/></svg>',
+  contrib: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5" opacity=".28"/><path d="M12 3.5a8.5 8.5 0 1 1-8.5 8.5"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
   bank: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="21" x2="21" y2="21"/><line x1="5" y1="21" x2="5" y2="10"/><line x1="19" y1="21" x2="19" y2="10"/><line x1="9" y1="21" x2="9" y2="10"/><line x1="15" y1="21" x2="15" y2="10"/><polygon points="12 3 3 8 21 8"/></svg>',
   scroll: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>',
@@ -1272,6 +1272,8 @@ function contribRingCardHtml(d, completion) {
   const row = (Array.isArray(d.monthlyContributions) ? d.monthlyContributions : []).find(r => r && r.monthKey === m.monthKey);
   const amt = row ? Number(row.amount) || 0 : null;
   const col = done ? 'var(--ok)' : 'var(--pending)';
+  const mm = Number(String(m.monthKey || '').split('-')[1]) || 0;
+  const range = mm ? `24 ${MONTHS_AR[mm - 1]} – 23 ${MONTHS_AR[mm % 12]}` : '';
   const arc = pct > 0 ? `<circle cx="62" cy="62" r="50" fill="none" stroke="url(#sfG2)" stroke-width="11" stroke-linecap="round" stroke-dasharray="${(pct / 100 * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 62 62)"/>` : '';
   const track = done ? '' : '<circle cx="62" cy="62" r="50" fill="none" style="stroke:var(--pending)" stroke-opacity="0.35" stroke-width="3" stroke-dasharray="3 6" stroke-linecap="round"/>';
   return `<div class="sf-card reveal">
@@ -1281,7 +1283,7 @@ function contribRingCardHtml(d, completion) {
         <div class="ct"><b style="color:${col}">${pct}%</b><span>من المطلوب</span></div></div>
       <div class="ci">
         <div><div class="k">سدّدوا</div><div class="vv">${m.covered} من ${m.required} عضوًا</div></div>
-        ${amt !== null ? `<div><div class="k">المحصّل خلال هذا الشهر المالي</div><div class="vv">${fmt(amt)} ريال</div></div>` : ''}
+        ${amt !== null ? `<div><div class="k">المستلم من الحوالات</div><div class="vv">${fmt(amt)} ريال</div><div class="k" style="font-size:11px;margin-top:1px;white-space:nowrap">${range ? 'من ' + range.replace(' – ', ' إلى ') : 'خلال هذا الشهر المالي'}</div></div>` : ''}
       </div>
     </div>
   </div>`;
