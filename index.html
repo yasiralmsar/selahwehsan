@@ -1272,8 +1272,6 @@ function contribRingCardHtml(d, completion) {
   const row = (Array.isArray(d.monthlyContributions) ? d.monthlyContributions : []).find(r => r && r.monthKey === m.monthKey);
   const amt = row ? Number(row.amount) || 0 : null;
   const col = done ? 'var(--ok)' : 'var(--pending)';
-  const mm = Number(String(m.monthKey || '').split('-')[1]) || 0;
-  const range = mm ? `24 ${MONTHS_AR[mm - 1]} – 23 ${MONTHS_AR[mm % 12]}` : '';
   const arc = pct > 0 ? `<circle cx="62" cy="62" r="50" fill="none" stroke="url(#sfG2)" stroke-width="11" stroke-linecap="round" stroke-dasharray="${(pct / 100 * C).toFixed(1)} ${C.toFixed(1)}" transform="rotate(-90 62 62)"/>` : '';
   const track = done ? '' : '<circle cx="62" cy="62" r="50" fill="none" style="stroke:var(--pending)" stroke-opacity="0.35" stroke-width="3" stroke-dasharray="3 6" stroke-linecap="round"/>';
   return `<div class="sf-card reveal">
@@ -1287,7 +1285,7 @@ function contribRingCardHtml(d, completion) {
         <div class="ct"><b style="color:${col}">${pct}%</b><span>من المطلوب</span></div></div>
       <div class="ci">
         <div><div class="k">سدّدوا</div><div class="vv">${m.covered} من ${m.required} عضوًا</div></div>
-        ${amt !== null ? `<div><div class="k">المستلم من الحوالات</div><div class="vv">${fmt(amt)} ريال</div><div class="k" style="font-size:11px;margin-top:1px;white-space:nowrap">${range ? 'من ' + range.replace(' – ', ' إلى ') : 'خلال هذا الشهر المالي'}</div></div>` : ''}
+        ${amt !== null ? `<div><div class="k">المستلم من الحوالات</div><div class="vv">${fmt(amt)} ريال</div><div class="k" style="font-size:11px;margin-top:1px">حتى الآن</div></div>` : ''}
       </div>
     </div>
   </div>`;
