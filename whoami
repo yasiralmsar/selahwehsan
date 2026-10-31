@@ -1,0 +1,15 @@
+// دالة Vercel: ترجع IP الزائر ومدينته ودولته التقريبية لموقع الصندوق نفسه فقط (بلا أي جهة خارجية).
+// المسار: /api/whoami — يقرأها index.html ثم يرسل النتيجة مع الزيارة إلى Apps Script (للمشرف فقط).
+module.exports = function handler(req, res) {
+  const h = req.headers || {};
+  const first = (v) => String(v || '').split(',')[0].trim();
+  const ip = first(h['x-forwarded-for']) || first(h['x-real-ip']) || (req.socket && req.socket.remoteAddress) || '';
+  const dec = (v) => { try { return decodeURIComponent(String(v || '')); } catch (e) { return String(v || ''); } };
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.status(200).send(JSON.stringify({
+    ip: ip,
+    country: dec(h['x-vercel-ip-country']),
+    city: dec(h['x-vercel-ip-city'])
+  }));
+};
