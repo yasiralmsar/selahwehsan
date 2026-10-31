@@ -523,6 +523,26 @@ section { margin-top: var(--sp-7); scroll-margin-top: var(--sp-5); }
   font-family: inherit; font-size: 15.5px; font-weight: 700; background: var(--surface-2); color: var(--text-1); margin-bottom: 20px; }
 
 /* ===== تعديل ترتيب الحوالات بلا اسم ===== */
+.sa-box { margin-top: 14px; }
+.sa-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.sa-stat { background: var(--surface-2); border-radius: 14px; padding: 10px 8px; text-align: center; }
+.sa-stat b { display: block; font-size: 22px; font-weight: 600; color: var(--text-1); }
+.sa-stat span { font-size: 11.5px; color: var(--text-2); }
+.sa-note { font-size: 12.5px; color: var(--text-2); margin-top: 10px; line-height: 1.7; }
+.sa-bars { display: flex; align-items: flex-end; gap: 4px; height: 96px; margin-top: 14px; direction: ltr; }
+.sa-bar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+.sa-bar i { display: block; width: 100%; max-width: 22px; border-radius: 6px 6px 3px 3px; background: linear-gradient(180deg, #8B6CFF, #4F5BE8); min-height: 3px; }
+.sa-bar em { font-style: normal; font-size: 10.5px; color: var(--text-2); margin-top: 3px; }
+.sa-bar b { font-size: 10.5px; font-weight: 600; color: var(--text-1); margin-bottom: 2px; }
+.sa-types { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.sa-types span { background: var(--surface-2); border-radius: 999px; padding: 4px 10px; font-size: 12px; color: var(--text-1); }
+.sa-dev { border: 1px solid var(--border-strong); border-radius: 14px; padding: 10px; margin-top: 8px; }
+.sa-dev .h { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; }
+.sa-dev .m { font-size: 12px; color: var(--text-2); margin-top: 4px; line-height: 1.7; }
+.sa-same { color: var(--pending); font-weight: 600; }
+.sa-dev .on { color: var(--ok); font-weight: 600; font-size: 11.5px; }
+.sa-dev .nm { display: flex; gap: 6px; margin-top: 8px; }
+.sa-dev .nm input { flex: 1; min-width: 0; }
 .nl-box { margin-top: 14px; }
 .nl-card { border: 1px solid var(--border); border-radius: var(--r-md); padding: 14px; margin-bottom: 14px; background: var(--surface-2); }
 .nl-card h4 { font-size: 14px; font-weight: 800; color: var(--text-1); margin: 0 0 8px; }
@@ -2237,7 +2257,8 @@ const ADMIN_ACTIONS = [
   // 'reviewDate' أُزيل من القائمة عمدًا: تاريخ المراجعة أصبح معادلة تلقائية (=TODAY()-16) في الشيت،
   // وأي تحديث يدوي من هنا يكتب فوقها ويعيدها لتاريخ ثابت. الدالة/الخادم ما زالا موجودين احتياطًا.
   { value: 'subscriptionAmount', label: 'قيمة الاشتراك الشهري' },
-  { value: 'namelessOrder', label: 'ترتيب الحوالات بلا اسم' }
+  { value: 'namelessOrder', label: 'ترتيب الحوالات بلا اسم' },
+  { value: 'siteActivity', label: 'نشاط الموقع' }
 ];
 
 function openAdminPanel() {
@@ -2371,6 +2392,15 @@ function openAdminPanel() {
           <div id="namelessOrderMsg"></div>
         </div>
 
+        <div class="admin-section" data-section="siteActivity">
+          <div class="admin-field">
+            <label>نشاط الموقع</label>
+            <div class="admin-note">كم جهازًا فتح الموقع ومتى. كل جهاز له رقم ثابت، وتستطيع كتابة اسم بجانبه. لا يُسجَّل عنوان IP ولا أي اسم تلقائيًا.</div>
+          </div>
+          <div class="admin-actions"><button class="admin-btn" id="showSiteActivityBtn">عرض نشاط الموقع</button></div>
+          <div id="siteActivityMsg"></div>
+        </div>
+
       </div>
     </div>
   `;
@@ -2402,6 +2432,7 @@ function openAdminPanel() {
   document.getElementById('deleteExpenseBtn').addEventListener('click', handleDeleteExpense);
   document.getElementById('setSubscriptionAmountBtn').addEventListener('click', handleSetSubscriptionAmount);
   document.getElementById('showNamelessOrderBtn').addEventListener('click', handleShowNamelessOrder);
+  document.getElementById('showSiteActivityBtn').addEventListener('click', handleShowSiteActivity);
   initNamelessOrderUi_();
 
   const actionSelect = document.getElementById('adminActionSelect');
@@ -3753,6 +3784,150 @@ async function handleSubmitRows() {
     } else { showAdminMsgPlain('فشل الإرسال: ' + (result.error || 'خطأ غير معروف'), 'error'); }
   } catch (err) { showAdminMsgPlain('تعذّر الاتصال بالسكربت: ' + err.message, 'error'); }
   finally { if (submitBtn) submitBtn.disabled = false; }
+}
+
+/* ===== نشاط الموقع: إرسال زيارة مجهولة (معرّف جهاز عشوائي) + عرض الإحصاءات في لوحة المشرف ===== */
+const SA_ID_KEY = 'sila_did', SA_LAST_KEY = 'sila_did_ts', SA_MIN_GAP_MS = 30 * 60 * 1000;
+
+function saDeviceInfo_() {
+  const ua = navigator.userAgent || '';
+  let device = 'Other';
+  if (/iPhone|iPod/.test(ua)) device = 'iPhone';
+  else if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) device = 'iPad';
+  else if (/Android/.test(ua)) device = 'Android';
+  else if (/Windows/.test(ua)) device = 'Windows';
+  else if (/Macintosh|Mac OS X/.test(ua)) device = 'Mac';
+  else if (/Linux/.test(ua)) device = 'Linux';
+  let browser = 'Other';
+  if (/SamsungBrowser/.test(ua)) browser = 'Samsung Internet';
+  else if (/Edg\//.test(ua)) browser = 'Edge';
+  else if (/OPR\/|Opera/.test(ua)) browser = 'Opera';
+  else if (/Firefox|FxiOS/.test(ua)) browser = 'Firefox';
+  else if (/Chrome|CriOS/.test(ua)) browser = 'Chrome';
+  else if (/Safari/.test(ua)) browser = 'Safari';
+  let standalone = false;
+  try { standalone = !!(window.navigator.standalone || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)); } catch (e) {}
+  return { device: device, browser: browser, standalone: standalone };
+}
+
+function saDeviceId_() {
+  let id = '';
+  try { id = localStorage.getItem(SA_ID_KEY) || ''; } catch (e) { return ''; }
+  if (/^[a-z0-9]{12,40}$/.test(id)) return id;
+  let r = '';
+  try {
+    const a = new Uint8Array(16); crypto.getRandomValues(a);
+    r = Array.from(a, b => (b % 36).toString(36)).join('');
+  } catch (e) { for (let i = 0; i < 16; i++) r += Math.floor(Math.random() * 36).toString(36); }
+  try { localStorage.setItem(SA_ID_KEY, r); } catch (e) { return ''; }
+  return r;
+}
+
+async function saGeo_() {
+  // دالة Vercel الخاصة بالموقع (نفس النطاق). تفشل بصمت خارج Vercel فتُرسل الزيارة بلا IP.
+  try {
+    const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 3000);
+    const r = await fetch('/api/whoami', { cache: 'no-store', signal: ctl.signal });
+    clearTimeout(to);
+    if (!r.ok) return {};
+    const j = await r.json();
+    return { ip: String(j.ip || ''), country: String(j.country || ''), city: String(j.city || '') };
+  } catch (e) { return {}; }
+}
+
+async function trackSiteVisit_() {
+  try {
+    const now = Date.now();
+    let last = 0;
+    try { last = Number(localStorage.getItem(SA_LAST_KEY)) || 0; } catch (e) {}
+    if (now - last < SA_MIN_GAP_MS) return;
+    const id = saDeviceId_();
+    if (!id) return;
+    try { localStorage.setItem(SA_LAST_KEY, String(now)); } catch (e) {}
+    const info = saDeviceInfo_();
+    const geo = await saGeo_();
+    fetch(API_URL, { method: 'POST', keepalive: true, body: JSON.stringify({ action: 'trackVisit', deviceId: id, device: info.device, browser: info.browser, standalone: info.standalone, ip: geo.ip || '', country: geo.country || '', city: geo.city || '' }) }).catch(() => {});
+  } catch (e) { /* لا يؤثر على الموقع أبدًا */ }
+}
+setTimeout(trackSiteVisit_, 3500);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(trackSiteVisit_, 1500); });
+
+let siteActivityData = null;
+let siteActivityFlash = '';
+function siteMsgEl_() { return document.getElementById('siteActivityMsg'); }
+
+function saFmt_(str) {
+  const m = String(str || '').match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/);
+  if (!m) return escapeHtml(String(str || ''));
+  const h = +m[4], h12 = h % 12 === 0 ? 12 : h % 12;
+  return `<bdi dir="rtl">${+m[3]} ${MONTHS_AR[+m[2] - 1]} · ${h12}:${m[5]} ${h < 12 ? 'ص' : 'م'}</bdi>`;
+}
+
+function renderSiteActivity_() {
+  const el = siteMsgEl_(); const a = siteActivityData;
+  if (!el || !a) return;
+  const stat = (label, o) => `<div class="sa-stat"><b>${o.devices}</b><span>${label}</span><span style="display:block;margin-top:2px">${o.visits} زيارة</span></div>`;
+  const maxD = Math.max(1, ...a.days14.map(d => d.devices));
+  const bars = a.days14.map(d => {
+    const h = d.devices ? Math.max(6, Math.round(d.devices / maxD * 64)) : 3;
+    return `<div class="sa-bar" title="${escapeHtml(d.date)}: ${d.devices} جهاز، ${d.visits} زيارة"><b>${d.devices || ''}</b><i style="height:${h}px;${d.devices ? '' : 'opacity:.25'}"></i><em>${Number(d.date.slice(8))}</em></div>`;
+  }).join('');
+  const r = a.returning || { devices: 0, returning: 0 };
+  const rp = r.devices ? Math.round(r.returning / r.devices * 100) : 0;
+  const types = Object.keys(a.types || {}).sort((x, y) => a.types[y] - a.types[x]).map(k => `<span>${escapeHtml(k)} ${a.types[k]}</span>`).join('');
+  const devs = (a.devices || []).map(d => `
+    <div class="sa-dev" data-num="${d.n}">
+      <div class="h"><strong>جهاز ${String(d.n).padStart(3, '0')}${d.name ? ' · ' + escapeHtml(d.name) : ''}</strong>${d.activeNow ? '<span class="on">نشط الآن</span>' : ''}</div>
+      <div class="m"><bdi dir="ltr">${escapeHtml(d.type)}</bdi>${d.ip ? `<br>عنوان IP: <bdi dir="ltr">${escapeHtml(d.ip)}</bdi>${(d.city || d.country) ? '<br>الموقع التقريبي: <bdi>' + escapeHtml([d.city, d.country].filter(Boolean).join('، ')) + '</bdi>' : ''}` : ''}${d.sameIp && d.sameIp.length ? `<br><span class="sa-same">نفس الشبكة مع: ${d.sameIp.map(x => 'جهاز ' + String(x).padStart(3, '0')).join('، ')}</span>` : ''}<br>عدد الزيارات: ${d.visits}<br>أول ظهور: ${saFmt_(d.first)}<br>آخر ظهور: ${saFmt_(d.last)}</div>
+      <div class="nm"><input type="text" maxlength="40" placeholder="اسم الجهاز (اختياري)" value="${escapeHtml(d.name)}" aria-label="اسم الجهاز ${d.n}"><button type="button" class="admin-btn sa-name-btn">حفظ</button></div>
+    </div>`).join('');
+  el.innerHTML = `${siteActivityFlash}
+    <div class="sa-box">
+      <div class="sa-stats">${stat('اليوم', a.today)}${stat('آخر 7 أيام', a.d7)}${stat('آخر 30 يومًا', a.d30)}</div>
+      <div class="sa-note">الأرقام الكبيرة = عدد الأجهزة المختلفة (يُحسب الجهاز مرة واحدة مهما تكرر دخوله).</div>
+      <div class="sa-note"><strong>العائدون:</strong> ${r.returning} من ${r.devices} جهازًا${r.devices ? ' (' + rp + '%)' : ''} زاروا الموقع في أكثر من يوم خلال 30 يومًا.</div>
+      <div class="sa-bars" aria-label="الأجهزة يوميًا آخر 14 يومًا">${bars}</div>
+      <div class="sa-note" style="text-align:center;margin-top:4px">الأجهزة في كل يوم، آخر 14 يومًا</div>
+      ${types ? `<div class="sa-types">${types}</div>` : ''}
+      <div class="sa-note" style="margin-top:14px"><strong>الأجهزة (${a.totalDevices}):</strong> الأحدث ظهورًا أولًا.</div>
+      ${devs || '<div class="sa-note">لا توجد أجهزة مسجّلة بعد. افتح الموقع من جوالك وانتظر قليلًا ثم حدّث هذه الصفحة.</div>'}
+    </div>`;
+  el.querySelectorAll('.sa-name-btn').forEach(btn => btn.addEventListener('click', () => handleNameDevice_(btn)));
+}
+
+async function handleShowSiteActivity() {
+  const msgEl = siteMsgEl_();
+  if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً.</div>'; return; }
+  if (isAdminKeyCachedInvalid_()) { msgEl.innerHTML = ADMIN_KEY_CACHED_INVALID_MSG; return; }
+  const btn = document.getElementById('showSiteActivityBtn');
+  btn.disabled = true;
+  msgEl.innerHTML = '<div class="admin-msg">جاري التحميل...</div>';
+  try {
+    const result = await namelessPost_({ action: 'getSiteActivity' });
+    if (!result.success) throw new Error(result.error || 'خطأ غير معروف');
+    siteActivityData = result; siteActivityFlash = '';
+    renderSiteActivity_();
+  } catch (err) {
+    msgEl.innerHTML = '<div class="admin-msg error">تعذّر التحميل: ' + escapeHtml(err.message) + '</div>';
+  } finally { btn.disabled = false; }
+}
+
+async function handleNameDevice_(btn) {
+  const box = btn.closest('.sa-dev'); if (!box) return;
+  const num = Number(box.dataset.num);
+  const name = box.querySelector('input').value;
+  btn.disabled = true;
+  try {
+    const result = await namelessPost_({ action: 'nameDevice', number: num, name: name });
+    if (!result.success) throw new Error(result.error || 'خطأ غير معروف');
+    const d = (siteActivityData.devices || []).find(x => x.n === num);
+    if (d) d.name = result.name || '';
+    siteActivityFlash = '<div class="admin-msg success">تم حفظ اسم الجهاز.</div>';
+    renderSiteActivity_();
+  } catch (err) {
+    siteActivityFlash = '<div class="admin-msg error">تعذّر الحفظ: ' + escapeHtml(err.message) + '</div>';
+    renderSiteActivity_();
+  }
 }
 </script>
 </body>
