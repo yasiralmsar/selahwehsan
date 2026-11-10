@@ -1057,8 +1057,8 @@ async function loadData(opts) {
 function fmt(num) { return Number(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 // دفعة ناقصة: متأخر بدورة واحدة فقط وسدّد جزءًا منها (مثل 100 من 150).
 function isPartial(m) { return !!m && m.status === 'late' && Number(m.partialPaid) > 0 && Number(m.remaining) > 0 && Number(m.behind) === 1; }
-function memberKey(m) { return isPartial(m) ? 'partial' : m.status; }
-function memberStatusLabel(m) { return isPartial(m) ? 'ناقص' : statusLabel(m.status); }
+function memberKey(m) { return m.status; }
+function memberStatusLabel(m) { return statusLabel(m.status); }
 function statusLabel(status) { return status === 'ok' ? 'منتظم' : (status === 'pending' ? 'معلق' : (status === 'new' ? 'عضو جديد' : (status === 'awaiting' ? 'بانتظار السداد' : 'متأخر'))); }
 function statusIcon(status) { return status === 'ok' ? ICONS.checkCircle : (status === 'pending' ? ICONS.alertCircle : (status === 'new' ? ICONS.info : (status === 'awaiting' ? ICONS.clock : ICONS.alertTriangle))); }
 
@@ -1094,7 +1094,7 @@ function clampPct(v) { return Math.max(0, Math.min(100, Number(v) || 0)); }
 
 function memberRowHtml(m, idx, animated) {
   const partial = isPartial(m);
-  const cls = partial ? 'partial' : statusClass(m.status);
+  const cls = statusClass(m.status);
   const cascade = animated ? ` cascade-item" data-cascade-idx="${idx}` : '';
   const initial = escapeHtml(String(m.name || '').trim().charAt(0));
   const det = m.status === 'late' ? lateDetail(m) : '';
@@ -1163,7 +1163,7 @@ function reportText(r) {
   if (r.exps.length === 0) L.push('المصروفات: لا توجد مصروفات هذا الشهر');
   else { L.push('المصروفات: ' + fmt(r.expTotal) + ' ريال'); r.exps.forEach(e => L.push('  • ' + e.desc + ': ' + fmt(e.amount) + ' ريال')); }
   if (r.late.length === 0) L.push('المتأخرون: لا يوجد متأخرون');
-  else { L.push('المتأخرون (' + r.late.length + '):'); r.late.forEach(m => L.push('  • ' + m.name + (m.detail ? ' — ' + (m.partial ? 'ناقص: ' : '') + m.detail : (m.months > 0 ? ' — ' + monthsLate(m.months) : '')))); }
+  else { L.push('المتأخرون (' + r.late.length + '):'); r.late.forEach(m => L.push('  • ' + m.name + (m.detail ? ' — ' + m.detail : (m.months > 0 ? ' — ' + monthsLate(m.months) : '')))); }
   L.push('────────────');
   L.push('أُعدّ بتاريخ ' + r.today);
   return L.join('\n');
@@ -1178,7 +1178,7 @@ function reportBodyHtml(r) {
     : `<div class="sf-rep-big">${fmt(r.expTotal)}<small>ريال</small></div>` + r.exps.map(e => `<div class="sf-row2" style="margin-top:12px;align-items:flex-start"><div class="sf-rn wrap" style="flex:1">${escapeHtml(e.desc)}</div><div class="sf-amt">${fmt(e.amount)}</div></div>`).join('');
   const late = r.late.length === 0
     ? '<div class="sf-t" style="margin-top:8px;color:var(--ok)">لا يوجد متأخرون</div>'
-    : r.late.map(m => `<div class="sf-row2" style="margin-top:12px"><div class="sf-rn">${escapeHtml(m.name)}</div><span class="sf-pill ${m.partial ? 'partial' : 'late'}">${m.detail ? escapeHtml(m.detail) : (m.months > 0 ? monthsLate(m.months) : 'متأخر')}</span></div>`).join('');
+    : r.late.map(m => `<div class="sf-row2" style="margin-top:12px"><div class="sf-rn">${escapeHtml(m.name)}</div><span class="sf-pill late">${m.detail ? escapeHtml(m.detail) : (m.months > 0 ? monthsLate(m.months) : 'متأخر')}</span></div>`).join('');
   return `<div class="sf-rep-hero"><b>شهر ${escapeHtml(r.label)} ${r.year}</b><span>${escapeHtml(r.range)}</span></div>
     <div class="sf-card" style="margin-top:14px"><div class="sf-mu">إيرادات الشهر</div>${rev}</div>
     <div class="sf-card" style="margin-top:14px"><div class="sf-mu">المصروفات</div>${exp}</div>
@@ -1463,9 +1463,8 @@ function renderApp(d) {
 
   const completion = d.monthlyCompletion;
   const month = monthCardHtml(completion);
-  const partialCount = d.members.filter(isPartial).length;
-  const counts = { all: d.members.length, awaiting: Number(d.awaitingCount) || 0, pending: Number(d.pendingCount) || 0, late: d.lateMembers.length - partialCount, partial: partialCount, ok: Number(d.okCount) || 0, new: Number(d.newCount) || 0 };
-  const chipDefs = [['all', 'الكل'], ['awaiting', 'بانتظار السداد'], ['pending', 'معلق'], ['late', 'متأخر'], ['partial', 'ناقص'], ['ok', 'منتظم'], ['new', 'عضو جديد']];
+  const counts = { all: d.members.length, awaiting: Number(d.awaitingCount) || 0, pending: Number(d.pendingCount) || 0, late: d.lateMembers.length, ok: Number(d.okCount) || 0, new: Number(d.newCount) || 0 };
+  const chipDefs = [['all', 'الكل'], ['awaiting', 'بانتظار السداد'], ['pending', 'معلق'], ['late', 'متأخر'], ['ok', 'منتظم'], ['new', 'عضو جديد']];
   const chipsHtml = chipDefs.filter(c => c[0] === 'all' || counts[c[0]] > 0).map(c => `<button type="button" class="sf-chip-btn${c[0] === (window._memberFilter || 'all') ? ' on' : ''}" data-filter="${c[0]}">${c[1]} ${counts[c[0]]}</button>`).join('');
   const rowsHtml = d.members.map((m, idx) => memberRowHtml(m, idx, true)).join('');
 
@@ -1853,7 +1852,7 @@ function initSearch() {
     let filtered = base;
     if (query) {
       const nq = normalize(query);
-      if (nq === "متاخر" || nq === "ناقص" || nq === "منتظم" || nq === "معلق" || nq === normalize("بانتظار السداد")) {
+      if (nq === "متاخر" ||nq === "منتظم" || nq === "معلق" || nq === normalize("بانتظار السداد")) {
         filtered = allMembersData.filter(m => normalize(memberStatusLabel(m)) === nq);
       } else {
         filtered = base.filter(m => normalize(m.name.split(" ")[0]).startsWith(nq));
