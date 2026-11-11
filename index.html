@@ -1088,6 +1088,13 @@ function lateDetail(m) {
   const extra = Number(m.partialPaid) > 0 ? ' (سدّد جزءًا: ' + fmtShort(m.partialPaid) + ')' : '';
   return 'المتبقي ' + fmtShort(rem) + ' ﷼' + (b > 0 ? ' · ' + monthsLate(b) : '') + extra;
 }
+// سطر تفصيلي ثانوي للمتأخر في التقرير: دفعة جزئية أو عدد الأشهر.
+function lateSub(m) {
+  const pp = Number(m.partialPaid) || 0, b = Number(m.behind) || 0, c = Number(m.cyclesLate || m.lateCycles || 0);
+  if (isPartial(m)) return 'دفع ' + fmtShort(pp) + ' من ' + fmtShort(m.nextCost);
+  const n = b || c;
+  return (n > 0 ? monthsLate(n) : '') + (pp > 0 ? (n > 0 ? ' · ' : '') + 'سدّد جزءًا: ' + fmtShort(pp) : '');
+}
 function monthsLate(n) { return n === 1 ? 'متأخر شهرًا واحدًا' : (n === 2 ? 'متأخر شهرين' : 'متأخر ' + n + ' أشهر'); }
 function streakText(n) { return n === 1 ? 'شهر واحد مكتمل' : (n === 2 ? 'شهران متتاليان' : (n <= 10 ? n + ' أشهر متتالية' : n + ' شهرًا متتاليًا')); }
 function clampPct(v) { return Math.max(0, Math.min(100, Number(v) || 0)); }
@@ -1144,12 +1151,38 @@ function buildReport(d) {
     return q ? { t: new Date(+q[1], +q[2] - 1, +q[3], 12), desc: String(e.description || '').replace(/\s+/g, ' ').trim(), amount: Number(e.amount) || 0, date: e.date } : null;
   }).filter(e => e && e.t >= start && e.t <= end);
   const now = new Date();
+  const revenue = contrib ? { amount: Number(contrib.amount) || 0, count: Number(contrib.count) || 0 } : null;
+  const expTotal = exps.reduce((a, e) => a + e.amount, 0);
+  // المتأخرون: الاسم + المتبقي بالريال، مرتبون من الأكبر متبقيًا إلى الأصغر.
+  const late = (d.members || []).filter(m => m.status === 'late').map(m => ({
+    name: m.name, months: Number(m.cyclesLate) || 0, partial: isPartial(m),
+    remaining: Number(m.remaining) || 0, sub: lateSub(m),
+    detail: Number(m.remaining) > 0 ? lateDetail(m) : ''
+  })).sort((a, b) => b.remaining - a.remaining);
+  const lateKnown = late.length > 0 && late.every(m => m.remaining > 0);
+  // مقارنة بالشهر السابق: سهم الفرق فقط إن اكتمل الشهر الحالي، وإلا مقارنة محايدة
+  // (حتى لا يبدو منتصف الشهر «نقصًا» أمام شهر سابق كامل).
+  const list = Array.isArray(d.monthlyContributions) ? d.monthlyContributions : [];
+  const ci = list.findIndex(x => x.monthKey === cur.monthKey);
+  const prev = ci > 0 ? { label: list[ci - 1].label, amount: Number(list[ci - 1].amount) || 0 } : null;
+  let cmp = null;
+  if (prev && revenue) {
+    if (cur.complete) {
+      const df = revenue.amount - prev.amount;
+      cmp = { tone: df > 0 ? 'up' : (df < 0 ? 'down' : 'flat'), text: df === 0 ? 'مثل شهر ' + prev.label : (df > 0 ? '▲ ' : '▼ ') + fmtShort(Math.abs(df)) + ' ريال عن شهر ' + prev.label };
+    } else cmp = { tone: 'flat', text: 'شهر ' + prev.label + ' السابق: ' + fmtShort(prev.amount) + ' ريال' };
+  }
   return {
     label: cur.label, year: y,
     range: `24 ${MONTHS_AR[mm - 1]} – 23 ${MONTHS_AR[mm % 12]}`,
-    revenue: contrib ? { amount: Number(contrib.amount) || 0, count: Number(contrib.count) || 0 } : null,
-    exps: exps, expTotal: exps.reduce((a, e) => a + e.amount, 0),
-    late: (d.members || []).filter(m => m.status === 'late').map(m => ({ name: m.name, months: Number(m.cyclesLate) || 0, partial: isPartial(m), detail: Number(m.remaining) > 0 ? lateDetail(m) : '' })),
+    revenue: revenue,
+    exps: exps, expTotal: expTotal,
+    net: revenue ? revenue.amount - expTotal : null,
+    balance: typeof d.balance === 'number' ? d.balance : null,
+    comp: { covered: Number(cur.covered) || 0, required: Number(cur.required) || 0, pct: clampPct(cur.pct), complete: !!cur.complete },
+    cmp: cmp,
+    late: late,
+    lateTotal: lateKnown ? late.reduce((a, m) => a + m.remaining, 0) : null,
     today: arDate(now.getFullYear() + '/' + (now.getMonth() + 1) + '/' + now.getDate())
   };
 }
@@ -1160,27 +1193,42 @@ function reportText(r) {
   L.push('شهر ' + r.label + ' ' + r.year + ' (' + r.range + ')');
   L.push('────────────');
   L.push(r.revenue ? 'الإيرادات: ' + fmt(r.revenue.amount) + ' ريال (' + r.revenue.count + ' حوالة)' : 'الإيرادات: غير متاحة حاليًا');
+  if (r.cmp) L.push('  ' + r.cmp.text);
   if (r.exps.length === 0) L.push('المصروفات: لا توجد مصروفات هذا الشهر');
   else { L.push('المصروفات: ' + fmt(r.expTotal) + ' ريال'); r.exps.forEach(e => L.push('  • ' + e.desc + ': ' + fmt(e.amount) + ' ريال')); }
+  if (r.net !== null) L.push('صافي الشهر: ' + (r.net < 0 ? '−' : (r.net > 0 ? '+' : '')) + fmt(Math.abs(r.net)) + ' ريال');
+  if (r.balance !== null) L.push('رصيد الصندوق: ' + fmt(r.balance) + ' ريال');
+  if (r.comp && r.comp.required > 0) L.push('اكتمال الشهر: ' + r.comp.covered + ' من ' + r.comp.required + ' عضوًا (' + r.comp.pct + '%)');
   if (r.late.length === 0) L.push('المتأخرون: لا يوجد متأخرون');
-  else { L.push('المتأخرون (' + r.late.length + '):'); r.late.forEach(m => L.push('  • ' + m.name + (m.detail ? ' — ' + m.detail : (m.months > 0 ? ' — ' + monthsLate(m.months) : '')))); }
+  else {
+    L.push('المتأخرون (' + r.late.length + ')' + (r.lateTotal !== null ? ' — إجمالي المتبقي ' + fmt(r.lateTotal) + ' ريال' : '') + ':');
+    r.late.forEach(m => L.push('  • ' + m.name + (m.remaining > 0 ? ': ' + fmtShort(m.remaining) + ' ريال' + (m.sub ? ' (' + m.sub + ')' : '') : (m.months > 0 ? ' — ' + monthsLate(m.months) : ''))));
+  }
   L.push('────────────');
   L.push('أُعدّ بتاريخ ' + r.today);
   return L.join('\n');
 }
 
 function reportBodyHtml(r) {
-  const rev = r.revenue
-    ? `<div class="sf-rep-big">${fmt(r.revenue.amount)}<small>ريال</small></div><div class="sf-mu" style="margin-top:4px">${r.revenue.count} حوالة هذا الشهر</div>`
-    : '<div class="sf-mu" style="margin-top:8px">غير متاحة حاليًا.</div>';
+  const tone = v => v === null ? '' : (v >= 0 ? 'color:var(--ok)' : 'color:var(--late)');
+  const tile = (t, v, st) => `<div style="flex:1;text-align:center;min-width:0"><div class="sf-mu">${t}</div><div class="sf-rep-big" style="font-size:24px;${st || ''}">${v}</div><div class="sf-mu" style="font-size:11px">ريال</div></div>`;
+  const netTxt = r.net === null ? '—' : '<bdi dir="ltr">' + (r.net < 0 ? '−' : (r.net > 0 ? '+' : '')) + fmtShort(Math.abs(r.net)) + '</bdi>';
+  const cmpCol = r.cmp ? (r.cmp.tone === 'up' ? 'var(--ok)' : (r.cmp.tone === 'down' ? 'var(--late)' : 'var(--text-3,#636890)')) : '';
+  const summary = `<div class="sf-card" style="margin-top:14px"><div style="display:flex;gap:6px">${tile('الإيرادات', r.revenue ? fmtShort(r.revenue.amount) : '—')}${tile('المصروفات', fmtShort(r.expTotal))}${tile('صافي الشهر', netTxt, tone(r.net))}</div>`
+    + (r.revenue ? `<div class="sf-mu" style="margin-top:12px;text-align:center">${r.revenue.count} حوالة هذا الشهر</div>` : '')
+    + (r.cmp ? `<div class="sf-mu" style="margin-top:4px;text-align:center;color:${cmpCol};font-weight:600">${escapeHtml(r.cmp.text)}</div>` : '') + `</div>`;
+  const ring = r.comp ? `<div class="sf-card" style="margin-top:14px"><div class="sf-row2"><div><div class="sf-mu">اكتمال الشهر</div><div class="sf-t" style="margin-top:4px">${r.comp.covered} من ${r.comp.required} عضوًا</div></div><div class="sf-rep-big" style="font-size:26px;color:${r.comp.pct >= 100 ? 'var(--ok)' : 'var(--accent,#6A4DF4)'}">${r.comp.pct}%</div></div>`
+    + (r.balance !== null ? `<div class="sf-row2" style="margin-top:14px"><div class="sf-mu">رصيد الصندوق</div><div class="sf-amt">${fmt(r.balance)} ريال</div></div>` : '') + `</div>` : '';
   const exp = r.exps.length === 0
     ? '<div class="sf-t" style="margin-top:8px">لا توجد مصروفات هذا الشهر</div>'
     : `<div class="sf-rep-big">${fmt(r.expTotal)}<small>ريال</small></div>` + r.exps.map(e => `<div class="sf-row2" style="margin-top:12px;align-items:flex-start"><div class="sf-rn wrap" style="flex:1">${escapeHtml(e.desc)}</div><div class="sf-amt">${fmt(e.amount)}</div></div>`).join('');
   const late = r.late.length === 0
     ? '<div class="sf-t" style="margin-top:8px;color:var(--ok)">لا يوجد متأخرون</div>'
-    : r.late.map(m => `<div class="sf-row2" style="margin-top:12px"><div class="sf-rn">${escapeHtml(m.name)}</div><span class="sf-pill late">${m.detail ? escapeHtml(m.detail) : (m.months > 0 ? monthsLate(m.months) : 'متأخر')}</span></div>`).join('');
+    : (r.lateTotal !== null ? `<div class="sf-row2" style="margin-top:10px"><div class="sf-mu">إجمالي المتبقي</div><div class="sf-amt" style="color:var(--late)">${fmt(r.lateTotal)} ريال</div></div>` : '')
+      + r.late.map(m => `<div class="sf-row2" style="margin-top:12px;align-items:flex-start"><div><div class="sf-rn">${escapeHtml(m.name)}</div>${m.sub ? `<div class="sf-mu" style="font-size:11.5px;margin-top:2px">${escapeHtml(m.sub)}</div>` : ''}</div><span class="sf-pill late">${m.remaining > 0 ? fmtShort(m.remaining) + ' ﷼' : (m.months > 0 ? monthsLate(m.months) : 'متأخر')}</span></div>`).join('');
   return `<div class="sf-rep-hero"><b>شهر ${escapeHtml(r.label)} ${r.year}</b><span>${escapeHtml(r.range)}</span></div>
-    <div class="sf-card" style="margin-top:14px"><div class="sf-mu">إيرادات الشهر</div>${rev}</div>
+    ${summary}
+    ${ring}
     <div class="sf-card" style="margin-top:14px"><div class="sf-mu">المصروفات</div>${exp}</div>
     <div class="sf-card" style="margin-top:14px"><div class="sf-mu">الأعضاء المتأخرون${r.late.length ? ' (' + r.late.length + ')' : ''}</div>${late}</div>
     <div class="sf-sync" style="margin-top:18px">أُعدّ بتاريخ ${escapeHtml(r.today)}</div>`;
@@ -1207,20 +1255,85 @@ function paintReport(r, createCanvas) {
     F(32, 400); ctx.fillText('شهر ' + r.label + ' ' + r.year + '  ·  ' + r.range, R, 246);
 
     const blocks = [];
-    blocks.push({ h: r.revenue ? 250 : 170, paint: y => { cardBg(y, r.revenue ? 250 : 170); label('إيرادات الشهر', y + IN + 26); if (r.revenue) { bigNum(fmt(r.revenue.amount), y + IN + 120); F(28, 400); ctx.fillStyle = '#5B5F86'; ctx.fillText(r.revenue.count + ' حوالة هذا الشهر', iR, y + IN + 170); } else { F(32, 500); ctx.fillStyle = '#5B5F86'; ctx.fillText('غير متاحة حاليًا', iR, y + IN + 90); } } });
+    const GREEN = '#0B7A62', RED = '#B22D27', INK = '#1E1B4B', MUTE = '#5B5F86', LINE = '#E3E6F5', ACC = '#6A4DF4';
+    // 1) ملخص من نظرة واحدة: الإيرادات | المصروفات | الصافي + عدد الحوالات + مقارنة الشهر السابق
+    const sumH = 330;
+    blocks.push({ h: sumH, paint: y => {
+      cardBg(y, sumH);
+      const colW = CW / 3;
+      const netTxt = r.net === null ? '—' : '\u202A' + (r.net < 0 ? '−' : (r.net > 0 ? '+' : '')) + fmtShort(Math.abs(r.net)) + '\u202C';
+      const cols = [
+        { t: 'الإيرادات', v: r.revenue ? fmtShort(r.revenue.amount) : '—', c: INK },
+        { t: 'المصروفات', v: fmtShort(r.expTotal), c: INK },
+        { t: 'صافي الشهر', v: netTxt, c: r.net === null ? INK : (r.net >= 0 ? GREEN : RED) }
+      ];
+      ctx.textAlign = 'center';
+      cols.forEach((c, i) => { const cx = R - colW * i - colW / 2;
+        F(28, 500); ctx.fillStyle = MUTE; ctx.fillText(c.t, cx, y + 74);
+        F(54, 600); ctx.fillStyle = c.c; ctx.fillText(c.v, cx, y + 148);
+        F(26, 400); ctx.fillStyle = MUTE; ctx.fillText('ريال', cx, y + 192); });
+      ctx.strokeStyle = LINE; ctx.lineWidth = 2;
+      [1, 2].forEach(i => { const x = R - colW * i; ctx.beginPath(); ctx.moveTo(x, y + 44); ctx.lineTo(x, y + 196); ctx.stroke(); });
+      let fy = y + 252;
+      if (r.revenue) { F(27, 400); ctx.fillStyle = MUTE; ctx.fillText(r.revenue.count + ' حوالة هذا الشهر', W / 2, fy); fy += 46; }
+      if (r.cmp) { F(27, 600); ctx.fillStyle = r.cmp.tone === 'up' ? GREEN : (r.cmp.tone === 'down' ? RED : MUTE); ctx.fillText(r.cmp.text, W / 2, fy); }
+      ctx.textAlign = 'right';
+    } });
+    // 2) حلقة اكتمال الشهر + رصيد الصندوق
+    const ringH = 260;
+    blocks.push({ h: ringH, paint: y => {
+      cardBg(y, ringH);
+      const rad = 74, cx = R - IN - rad - 12, cy = y + ringH / 2, pct = r.comp ? r.comp.pct : 0;
+      ctx.lineWidth = 22; ctx.lineCap = 'round';
+      ctx.strokeStyle = LINE; ctx.beginPath(); ctx.arc(cx, cy, rad, 0, Math.PI * 2); ctx.stroke();
+      if (pct > 0) { ctx.strokeStyle = pct >= 100 ? GREEN : ACC; ctx.beginPath(); ctx.arc(cx, cy, rad, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * pct / 100); ctx.stroke(); }
+      ctx.lineCap = 'butt';
+      ctx.textAlign = 'center'; F(pct >= 100 ? 30 : 38, 600); ctx.fillStyle = INK; ctx.fillText(pct + '%', cx, cy + (pct >= 100 ? 11 : 14));
+      const tx = cx - rad - 44; ctx.textAlign = 'right';
+      F(28, 500); ctx.fillStyle = MUTE; ctx.fillText('اكتمال الشهر', tx, cy - 14);
+      F(34, 600); ctx.fillStyle = INK; ctx.fillText(r.comp ? r.comp.covered + ' من ' + r.comp.required + ' عضوًا' : '—', tx, cy + 34);
+      if (r.balance !== null) {
+        ctx.strokeStyle = LINE; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(L + 330, y + 50); ctx.lineTo(L + 330, y + ringH - 50); ctx.stroke();
+        ctx.textAlign = 'center'; const bx = L + 165;
+        F(28, 500); ctx.fillStyle = MUTE; ctx.fillText('رصيد الصندوق', bx, cy - 22);
+        F(46, 600); ctx.fillStyle = INK; ctx.fillText(fmtShort(r.balance), bx, cy + 40);
+        F(24, 400); ctx.fillStyle = MUTE; ctx.fillText('ريال', bx, cy + 78);
+        ctx.textAlign = 'right';
+      }
+    } });
+    // 3) المصروفات
     F(30, 400);
     const expLines = r.exps.map(e => wrap(e.desc, CW - 2 * IN - 250));
     const expH = r.exps.length === 0 ? IN * 2 + 26 + 70 : IN * 2 + 26 + 110 + expLines.reduce((a, l) => a + l.length * 44 + 22, 0);
     blocks.push({ h: expH, paint: y => { cardBg(y, expH); label('المصروفات', y + IN + 26);
-      if (r.exps.length === 0) { F(34, 500); ctx.fillStyle = '#1E1B4B'; ctx.fillText('لا توجد مصروفات هذا الشهر', iR, y + IN + 90); return; }
+      if (r.exps.length === 0) { F(34, 500); ctx.fillStyle = INK; ctx.fillText('لا توجد مصروفات هذا الشهر', iR, y + IN + 90); return; }
       bigNum(fmt(r.expTotal), y + IN + 120); let yy = y + IN + 190;
-      r.exps.forEach((e, i) => { F(30, 400); ctx.fillStyle = '#1E1B4B'; expLines[i].forEach((ln, k) => ctx.fillText(ln, iR, yy + k * 44));
+      r.exps.forEach((e, i) => { F(30, 400); ctx.fillStyle = INK; expLines[i].forEach((ln, k) => ctx.fillText(ln, iR, yy + k * 44));
         ctx.textAlign = 'left'; F(30, 600); ctx.fillText(fmt(e.amount), iL, yy); ctx.textAlign = 'right'; yy += expLines[i].length * 44 + 22; }); } });
-    const lateH = r.late.length === 0 ? IN * 2 + 26 + 70 : IN * 2 + 26 + 40 + r.late.length * 74;
-    blocks.push({ h: lateH, paint: y => { cardBg(y, lateH); label('الأعضاء المتأخرون' + (r.late.length ? ' (' + r.late.length + ')' : ''), y + IN + 26);
-      if (r.late.length === 0) { F(34, 500); ctx.fillStyle = '#0B7A62'; ctx.fillText('لا يوجد متأخرون', iR, y + IN + 90); return; }
-      r.late.forEach((m, i) => { const yy = y + IN + 100 + i * 74; F(34, 500); ctx.fillStyle = '#1E1B4B'; ctx.fillText(m.name, iR, yy);
-        ctx.textAlign = 'left'; F(28, 500); ctx.fillStyle = '#B22D27'; ctx.fillText(m.detail ? m.detail : (m.months > 0 ? monthsLate(m.months) : 'متأخر'), iL, yy); ctx.textAlign = 'right'; }); } });
+    // 4) المتأخرون: الاسم + المتبقي بالريال (من الأكبر)، وإجمالي المتبقي، واختصار الزائد عن 8
+    const MAXR = 8, ROWH = 108, shown = r.late.slice(0, MAXR), more = r.late.slice(MAXR);
+    const hasTot = r.lateTotal !== null;
+    const lateH = r.late.length === 0 ? IN * 2 + 26 + 70 : IN + 26 + (hasTot ? 112 : 40) + shown.length * ROWH + (more.length ? 70 : 0) + IN - 10;
+    blocks.push({ h: lateH, paint: y => { cardBg(y, lateH);
+      label('الأعضاء المتأخرون' + (r.late.length ? ' (' + r.late.length + ')' : ''), y + IN + 26);
+      if (r.late.length === 0) { F(34, 500); ctx.fillStyle = GREEN; ctx.fillText('لا يوجد متأخرون', iR, y + IN + 90); return; }
+      let ry = y + IN + 26 + 40;
+      if (hasTot) {
+        F(30, 500); ctx.fillStyle = MUTE; ctx.fillText('إجمالي المتبقي', iR, ry + 24);
+        ctx.textAlign = 'left'; F(44, 600); ctx.fillStyle = RED; ctx.fillText(fmtShort(r.lateTotal) + ' ريال', iL, ry + 26); ctx.textAlign = 'right';
+        ry += 72;
+      }
+      shown.forEach((m, i) => { const ny = ry + 40 + i * ROWH;
+        F(35, 500); ctx.fillStyle = INK; ctx.fillText(m.name, iR, ny);
+        if (m.sub) { F(26, 400); ctx.fillStyle = MUTE; ctx.fillText(m.sub, iR, ny + 40); }
+        ctx.textAlign = 'left'; ctx.fillStyle = RED;
+        if (m.remaining > 0) { F(38, 600); ctx.fillText(fmtShort(m.remaining) + ' ﷼', iL, ny + 6); }
+        else { F(28, 500); ctx.fillText(m.months > 0 ? monthsLate(m.months) : 'متأخر', iL, ny + 4); }
+        ctx.textAlign = 'right';
+        if (i < shown.length - 1 || more.length) { ctx.strokeStyle = LINE; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(iL, ny + 66); ctx.lineTo(iR, ny + 66); ctx.stroke(); } });
+      if (more.length) { const my = ry + 40 + shown.length * ROWH, ms = more.reduce((a, m) => a + (m.remaining || 0), 0);
+        F(30, 500); ctx.fillStyle = MUTE; ctx.fillText('و ' + more.length + ' آخرون', iR, my);
+        if (ms > 0) { ctx.textAlign = 'left'; F(32, 600); ctx.fillStyle = RED; ctx.fillText(fmtShort(ms) + ' ﷼', iL, my + 2); ctx.textAlign = 'right'; } } } });
     let y = 360;
     blocks.forEach(b => { b.paint(y); y += b.h + 28; });
     ctx.textAlign = 'center'; F(26, 400); ctx.fillStyle = '#636890';
