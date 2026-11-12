@@ -782,6 +782,11 @@ footer{text-align:center;color:var(--text-3)!important;font-size:12px;padding:0 
 .mr-ring i{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:15px;font-weight:700;color:currentColor}
 .mr-ring.ok{color:var(--ok)}.mr-ring.late{color:var(--late)}.mr-ring.pending{color:var(--pending)}.mr-ring.new{color:var(--new-member)}.mr-ring.awaiting{color:var(--awaiting)}
 .sf-btn svg{width:18px;height:18px;flex:0 0 auto}
+.mr-note{display:flex;align-items:flex-start;gap:12px;border-radius:22px;padding:14px 16px;margin-top:14px;font-size:13.5px;line-height:1.75;font-weight:500}
+.mr-note .ic{flex:0 0 auto;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.55)}
+.mr-note .ic svg{width:18px;height:18px}
+.mr-note.ok{background:var(--ok-dim);color:var(--ok)}.mr-note.warn{background:rgba(245,166,35,.17);color:#8A5A00}
+:root[data-theme="dark"] .mr-note.warn{background:rgba(245,177,76,.15);color:#F5B14C}.mr-note.info{background:var(--pending-dim);color:var(--text-1)}
 .mr-hero{display:flex;align-items:center;gap:14px}
 .mr-hero .mr-ring{width:64px;height:64px}.mr-hero .mr-ring svg{width:64px;height:64px}.mr-hero .mr-ring i{font-size:20px}
 .mr-name{font-size:20px;font-weight:700;color:var(--text-1)}
@@ -863,6 +868,9 @@ footer{text-align:center;color:var(--text-3)!important;font-size:12px;padding:0 
    ظهور مطابق على كل الأجهزة والتحكم الكامل باللون والحجم.
    ========================================================================= */
 const ICONS = {
+  heart: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-9.6-9.2C.8 8.3 2.6 4.8 6 4.8c2.1 0 3.6 1.2 4.4 2.6.3.5 1 .5 1.2 0C12.4 6 13.9 4.8 16 4.8c3.4 0 5.2 3.5 3.6 7C19.5 16.4 12 21 12 21z"/></svg>',
+  bell: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>',
+  sparkle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>',
   eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
   contrib: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5" opacity=".28"/><path d="M12 3.5a8.5 8.5 0 1 1-8.5 8.5"/></svg>',
   gear: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
@@ -1402,6 +1410,22 @@ function monthsSince(j) {
   const m = String(j || '').match(/(\d{4})[\/-](\d{1,2})/); if (!m) return '';
   const now = new Date(); return durText((now.getFullYear() - Number(m[1])) * 12 + (now.getMonth() + 1 - Number(m[2])));
 }
+function firstName(n) {
+  const w = String(n || '').trim().split(/\s+/);
+  return (w[0] && /^عبد/.test(w[0]) && w[1]) ? w[0] + ' ' + w[1] : (w[0] || '');
+}
+// عبارة الشكر/التحفيز في تقرير العضو بحسب حالته (المعلّق بلا عبارة لخصوصية أسباب التعليق).
+function memberNote(m, rem) {
+  const fn = firstName(m.name);
+  if (m.status === 'ok') return { tone: 'ok', icon: 'heart', text: 'جزاك الله خيرًا يا ' + fn + ' على التزامك. مساهمتك المنتظمة تدعم الصندوق وتخدم العائلة، فشكرًا لك.' };
+  if (m.status === 'late') {
+    if (isPartial(m) && rem > 0) return { tone: 'warn', icon: 'bell', text: 'بقي ' + fmtShort(rem) + ' ريالًا فقط لإتمام اشتراكك. نقدّر مبادرتك بإكمالها متى تيسّر لك.' };
+    return { tone: 'warn', icon: 'bell', text: 'يهمنا اكتمال مساهمات الجميع ليستمر الصندوق في خدمة العائلة. نأمل سداد المتبقي' + (rem > 0 ? ' (' + fmtShort(rem) + ' ريالًا)' : '') + ' في أقرب فرصة.' };
+  }
+  if (m.status === 'awaiting') return { tone: 'info', icon: 'bell', text: 'اشتراكك لهذا الشهر قيد التحصيل، شكرًا لك مقدّمًا.' };
+  if (m.status === 'new') return { tone: 'info', icon: 'sparkle', text: 'أهلًا بك في الصندوق، يسعدنا انضمامك.' };
+  return null;
+}
 function buildMember(m) {
   const d = m.detail || null, owed = d && d.o ? d.o : [];
   const rem = d ? Number(d.r) || 0 : (Number(m.remaining) || 0);
@@ -1417,6 +1441,7 @@ function buildMember(m) {
     paid: d ? Number(d.t) || 0 : Number(m.amount) || 0,
     covered: d ? Number(d.c) || 0 : 0, owedN: owed.length, rem: rem,
     sub: m.status === 'late' ? lateDetail(m) : '',
+    note: memberNote(m, rem),
     months: months, tx: d && d.x ? d.x : [],
     today: arDate(new Date().getFullYear() + '/' + (new Date().getMonth() + 1) + '/' + new Date().getDate())
   };
@@ -1431,6 +1456,7 @@ function memberText(r) {
   L.push('إجمالي المسدَّد: ' + fmt(r.paid) + ' ريال');
   if (r.owedN) L.push('الأشهر المغطّاة: ' + r.covered + ' من ' + r.owedN);
   L.push(r.rem > 0 ? 'المتبقي: ' + fmt(r.rem) + ' ريال' : 'المتبقي: لا يوجد');
+  if (r.note) L.push(r.note.text);
   if (r.tx.length) { L.push('آخر الحوالات:'); r.tx.slice(0, 8).forEach(t => L.push('  • ' + arDate(t[0]) + ': ' + fmt(t[1]) + ' ريال')); }
   L.push('────────────');
   L.push('أُعدّ بتاريخ ' + r.today);
@@ -1444,11 +1470,12 @@ function memberBodyHtml(r) {
     + `<div class="mr-tile"><span class="sf-mu">الأشهر المغطّاة</span><b>${r.owedN ? r.covered + ' من ' + r.owedN : '—'}</b><small>شهر مالي</small></div>`
     + `<div class="mr-tile"><span class="sf-mu">المتبقي</span><b style="color:${r.rem > 0 ? 'var(--late)' : 'var(--ok)'}">${r.rem > 0 ? fmtShort(r.rem) : '0'}</b><small>${r.rem > 0 ? 'ريال' : 'لا يوجد'}</small></div>`
     + `</div></div>`;
+  const note = r.note ? `<div class="mr-note ${r.note.tone}"><span class="ic">${ICONS[r.note.icon]}</span><div>${escapeHtml(r.note.text)}</div></div>` : '';
   const grid = r.months.length ? `<div class="sf-card" style="margin-top:14px"><div class="sf-mu">حالة الأشهر المالية</div><div class="mr-grid">${r.months.map(c => `<div class="mr-m ${c.st}"><b>${escapeHtml(c.name)}</b><small>${c.year}</small></div>`).join('')}</div>`
     + `<div class="mr-leg"><span><i style="background:var(--ok)"></i>مغطّى</span><span><i style="background:var(--awaiting)"></i>جزئي</span><span><i style="background:var(--late)"></i>غير مسدَّد</span></div></div>` : '';
   const tx = `<div class="sf-card" style="margin-top:14px"><div class="sf-mu">سجل المساهمات${r.tx.length ? ' (' + r.tx.length + (r.tx.length >= 24 ? ' الأحدث' : '') + ')' : ''}</div>`
     + (r.tx.length ? `<div class="mr-tl">${r.tx.map(t => `<div class="mr-tx"><span class="dot"></span><div class="dt">${escapeHtml(arDate(t[0]))}</div><div class="am">${fmt(t[1])} ريال</div></div>`).join('')}</div>` : '<div class="sf-t" style="margin-top:8px">لا توجد مساهمات مسجلة بعد</div>') + `</div>`;
-  return hero + tiles + grid + tx + `<div class="sf-sync" style="margin-top:18px">أُعدّ بتاريخ ${escapeHtml(r.today)}</div>`;
+  return hero + tiles + note + grid + tx + `<div class="sf-sync" style="margin-top:18px">أُعدّ بتاريخ ${escapeHtml(r.today)}</div>`;
 }
 function paintMember(r, createCanvas) {
   const S = 2, W = 1080, M = 56, IN = 40, FONT = '"Readex Pro","Tajawal","DejaVu Sans",system-ui,sans-serif';
@@ -1492,6 +1519,27 @@ function paintMember(r, createCanvas) {
       ctx.strokeStyle = LINE; ctx.lineWidth = 2;
       [1, 2].forEach(i => { const x = R - colW * i; ctx.beginPath(); ctx.moveTo(x, y + 46); ctx.lineTo(x, y + 204); ctx.stroke(); });
       ctx.textAlign = 'right'; } });
+    // عبارة الشكر / التحفيز
+    if (r.note) {
+      F(31, 500);
+      const maxW = CW - 2 * IN - 96, words = r.note.text.split(' '), lines = []; let cur = '';
+      words.forEach(w => { const t = cur ? cur + ' ' + w : w; if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; });
+      if (cur) lines.push(cur);
+      const nH = Math.max(150, 2 * IN + lines.length * 48 - 6);
+      const pal = { ok: ['#E1F4EC', GREEN], warn: ['#FCEFD2', AMB], info: ['#EEF0FA', MUTE] }[r.note.tone];
+      blocks.push({ h: nH, paint: y => {
+        ctx.fillStyle = pal[0]; rr(L, y, CW, nH, 36); ctx.fill();
+        const icx = iR - 28, icy = y + nH / 2;
+        ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.beginPath(); ctx.arc(icx, icy, 34, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = pal[1]; ctx.strokeStyle = pal[1]; ctx.lineWidth = 4.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        if (r.note.icon === 'heart') { ctx.beginPath(); ctx.moveTo(icx, icy + 15); ctx.bezierCurveTo(icx - 26, icy - 2, icx - 15, icy - 22, icx, icy - 8); ctx.bezierCurveTo(icx + 15, icy - 22, icx + 26, icy - 2, icx, icy + 15); ctx.fill(); }
+        else if (r.note.icon === 'bell') { ctx.beginPath(); ctx.moveTo(icx - 14, icy + 9); ctx.quadraticCurveTo(icx - 12, icy - 2, icx - 12, icy - 6); ctx.bezierCurveTo(icx - 12, icy - 24, icx + 12, icy - 24, icx + 12, icy - 6); ctx.quadraticCurveTo(icx + 12, icy - 2, icx + 14, icy + 9); ctx.closePath(); ctx.stroke(); ctx.beginPath(); ctx.arc(icx, icy + 15, 4, 0, Math.PI); ctx.stroke(); }
+        else { ctx.beginPath(); ctx.moveTo(icx, icy - 17); ctx.lineTo(icx + 5, icy - 5); ctx.lineTo(icx + 17, icy); ctx.lineTo(icx + 5, icy + 5); ctx.lineTo(icx, icy + 17); ctx.lineTo(icx - 5, icy + 5); ctx.lineTo(icx - 17, icy); ctx.lineTo(icx - 5, icy - 5); ctx.closePath(); ctx.stroke(); }
+        ctx.lineCap = 'butt'; ctx.fillStyle = pal[1]; F(31, 500);
+        const ty0 = y + nH / 2 - (lines.length - 1) * 24 + 11;
+        lines.forEach((ln, i) => ctx.fillText(ln, iR - 72, ty0 + i * 48));
+      } });
+    }
     // شريط الأشهر
     if (r.months.length) {
       const COLS = 6, CWc = 138, GAP = 12, CH = 98, rows = Math.ceil(r.months.length / COLS);
