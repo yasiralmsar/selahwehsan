@@ -1083,17 +1083,16 @@ function statusClass(st) { return st === 'ok' ? 'ok' : (st === 'pending' ? 'pend
 function lateDetail(m) {
   const rem = Number(m.remaining) || 0;
   if (rem <= 0) { const c = Number(m.cyclesLate || m.lateCycles || 0); return c > 0 ? monthsLate(c) : ''; }
-  if (isPartial(m)) return 'المتبقي ' + fmtShort(rem) + ' ﷼ (دفع ' + fmtShort(m.partialPaid) + ' من ' + fmtShort(m.nextCost) + ')';
+  if (isPartial(m)) return 'المتبقي ' + fmtShort(rem) + ' ﷼';
   const b = Number(m.behind) || 0;
-  const extra = Number(m.partialPaid) > 0 ? ' (سدّد جزءًا: ' + fmtShort(m.partialPaid) + ')' : '';
-  return 'المتبقي ' + fmtShort(rem) + ' ﷼' + (b > 0 ? ' · ' + monthsLate(b) : '') + extra;
+  return 'المتبقي ' + fmtShort(rem) + ' ﷼' + (b > 0 ? ' · ' + monthsLate(b) : '');
 }
 // سطر تفصيلي ثانوي للمتأخر في التقرير: دفعة جزئية أو عدد الأشهر.
 function lateSub(m) {
-  const pp = Number(m.partialPaid) || 0, b = Number(m.behind) || 0, c = Number(m.cyclesLate || m.lateCycles || 0);
-  if (isPartial(m)) return 'دفع ' + fmtShort(pp) + ' من ' + fmtShort(m.nextCost);
+  const b = Number(m.behind) || 0, c = Number(m.cyclesLate || m.lateCycles || 0);
+  if (isPartial(m)) return '';
   const n = b || c;
-  return (n > 0 ? monthsLate(n) : '') + (pp > 0 ? (n > 0 ? ' · ' : '') + 'سدّد جزءًا: ' + fmtShort(pp) : '');
+  return n > 0 ? monthsLate(n) : '';
 }
 function monthsLate(n) { return n === 1 ? 'متأخر شهرًا واحدًا' : (n === 2 ? 'متأخر شهرين' : 'متأخر ' + n + ' أشهر'); }
 function streakText(n) { return n === 1 ? 'شهر واحد مكتمل' : (n === 2 ? 'شهران متتاليان' : (n <= 10 ? n + ' أشهر متتالية' : n + ' شهرًا متتاليًا')); }
@@ -1235,8 +1234,10 @@ function reportBodyHtml(r) {
 }
 
 function paintReport(r, createCanvas) {
+  const S = 2; // دقة مضاعفة: الرسم بإحداثيات 1080 ثم تكبير الكنفس ×2
   const W = 1080, M = 56, IN = 40, FONT = '"Readex Pro","Tajawal","DejaVu Sans",system-ui,sans-serif';
   function draw(ctx, H) {
+    ctx.setTransform(S, 0, 0, S, 0, 0);
     ctx.direction = 'rtl'; ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
     const R = W - M, L = M, iR = R - IN, iL = L + IN, CW = W - 2 * M;
     const F = (sz, w) => { ctx.font = (w || 400) + ' ' + sz + 'px ' + FONT; };
@@ -1311,9 +1312,9 @@ function paintReport(r, createCanvas) {
       r.exps.forEach((e, i) => { F(30, 400); ctx.fillStyle = INK; expLines[i].forEach((ln, k) => ctx.fillText(ln, iR, yy + k * 44));
         ctx.textAlign = 'left'; F(30, 600); ctx.fillText(fmt(e.amount), iL, yy); ctx.textAlign = 'right'; yy += expLines[i].length * 44 + 22; }); } });
     // 4) المتأخرون: الاسم + المتبقي بالريال (من الأكبر)، وإجمالي المتبقي، واختصار الزائد عن 8
-    const MAXR = 8, ROWH = 108, shown = r.late.slice(0, MAXR), more = r.late.slice(MAXR);
+    const MAXR = 8, rowOf = m => (m.sub ? 108 : 84), shown = r.late.slice(0, MAXR), more = r.late.slice(MAXR);
     const hasTot = r.lateTotal !== null;
-    const lateH = r.late.length === 0 ? IN * 2 + 26 + 70 : IN + 26 + (hasTot ? 112 : 40) + shown.length * ROWH + (more.length ? 70 : 0) + IN - 10;
+    const lateH = r.late.length === 0 ? IN * 2 + 26 + 70 : IN + 26 + (hasTot ? 112 : 40) + shown.reduce((a, m) => a + rowOf(m), 0) + (more.length ? 70 : 0) + IN - 10;
     blocks.push({ h: lateH, paint: y => { cardBg(y, lateH);
       label('الأعضاء المتأخرون' + (r.late.length ? ' (' + r.late.length + ')' : ''), y + IN + 26);
       if (r.late.length === 0) { F(34, 500); ctx.fillStyle = GREEN; ctx.fillText('لا يوجد متأخرون', iR, y + IN + 90); return; }
@@ -1323,15 +1324,16 @@ function paintReport(r, createCanvas) {
         ctx.textAlign = 'left'; F(44, 600); ctx.fillStyle = RED; ctx.fillText(fmtShort(r.lateTotal) + ' ريال', iL, ry + 26); ctx.textAlign = 'right';
         ry += 72;
       }
-      shown.forEach((m, i) => { const ny = ry + 40 + i * ROWH;
+      let acc = 0;
+      shown.forEach((m, i) => { const ny = ry + 40 + acc; const rh = rowOf(m); acc += rh;
         F(35, 500); ctx.fillStyle = INK; ctx.fillText(m.name, iR, ny);
         if (m.sub) { F(26, 400); ctx.fillStyle = MUTE; ctx.fillText(m.sub, iR, ny + 40); }
         ctx.textAlign = 'left'; ctx.fillStyle = RED;
         if (m.remaining > 0) { F(38, 600); ctx.fillText(fmtShort(m.remaining) + ' ﷼', iL, ny + 6); }
         else { F(28, 500); ctx.fillText(m.months > 0 ? monthsLate(m.months) : 'متأخر', iL, ny + 4); }
         ctx.textAlign = 'right';
-        if (i < shown.length - 1 || more.length) { ctx.strokeStyle = LINE; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(iL, ny + 66); ctx.lineTo(iR, ny + 66); ctx.stroke(); } });
-      if (more.length) { const my = ry + 40 + shown.length * ROWH, ms = more.reduce((a, m) => a + (m.remaining || 0), 0);
+        if (i < shown.length - 1 || more.length) { ctx.strokeStyle = LINE; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(iL, ny + rh - 42); ctx.lineTo(iR, ny + rh - 42); ctx.stroke(); } });
+      if (more.length) { const my = ry + 40 + acc, ms = more.reduce((a, m) => a + (m.remaining || 0), 0);
         F(30, 500); ctx.fillStyle = MUTE; ctx.fillText('و ' + more.length + ' آخرون', iR, my);
         if (ms > 0) { ctx.textAlign = 'left'; F(32, 600); ctx.fillStyle = RED; ctx.fillText(fmtShort(ms) + ' ﷼', iL, my + 2); ctx.textAlign = 'right'; } } } });
     let y = 360;
@@ -1340,9 +1342,9 @@ function paintReport(r, createCanvas) {
     ctx.fillText('أُعدّ بتاريخ ' + r.today, W / 2, y + 36); ctx.fillText((BANK_INFO.fundName || 'صندوق صلة وإحسان العائلي') + '  ·  تُحدَّث البيانات تلقائيًا', W / 2, y + 78);
     return y + 130;
   }
-  const probe = createCanvas(W, 4000);
+  const probe = createCanvas(W * S, 4000 * S);
   const H = draw(probe.getContext('2d'), 4000);
-  const cv = createCanvas(W, H);
+  const cv = createCanvas(W * S, H * S);
   draw(cv.getContext('2d'), H);
   return cv;
 }
@@ -1351,9 +1353,10 @@ function browserCanvas(w, h) { const c = document.createElement('canvas'); c.wid
 async function prepareReportImage(r) {
   window._reportBlob = null;
   try {
-    if (document.fonts && document.fonts.load) await Promise.all([document.fonts.load('600 40px "Readex Pro"'), document.fonts.load('400 30px "Readex Pro"')]);
+    if (document.fonts && document.fonts.load) await Promise.all([document.fonts.load('600 40px "Readex Pro"'), document.fonts.load('500 30px "Readex Pro"'), document.fonts.load('400 30px "Readex Pro"')]);
     const cv = paintReport(r, browserCanvas);
-    cv.toBlob(b => { window._reportBlob = b; const btn = document.getElementById('reportImgBtn'); if (btn) btn.disabled = !b; }, 'image/png');
+    window._reportCv = cv;
+    cv.toBlob(b => { window._reportBlob = b; const btn = document.getElementById('reportImgBtn'); if (btn) btn.disabled = !b; const pb = document.getElementById('reportPdfBtn'); if (pb) pb.disabled = !b; }, 'image/png');
   } catch (e) { const btn = document.getElementById('reportImgBtn'); if (btn) btn.style.display = 'none'; }
 }
 function copyTextAnywhere(text, done) {
@@ -1365,6 +1368,45 @@ async function shareReportText() {
   const text = reportText(r), btn = document.getElementById('reportShareBtn');
   if (navigator.share) { try { await navigator.share({ title: 'التقرير الشهري', text: text }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
   copyTextAnywhere(text, () => { const old = btn.innerHTML; btn.textContent = 'تم نسخ التقرير'; setTimeout(() => { btn.innerHTML = old; }, 1800); });
+}
+// PDF من صفحة واحدة تحمل صورة التقرير (JPEG بجودة 0.95): تُرسل كمستند فلا تضغطها واتساب كالصور.
+function buildReportPdf(cv, done) {
+  cv.toBlob(jb => {
+    if (!jb) { done(null); return; }
+    jb.arrayBuffer().then(buf => {
+      const jpg = new Uint8Array(buf), pw = cv.width / 2, ph = cv.height / 2; // نقاط PDF = بكسلات المنطق (1080)
+      const enc = new TextEncoder(), parts = [], offs = [];
+      let len = 0;
+      const push = d => { const u = typeof d === 'string' ? enc.encode(d) : d; parts.push(u); len += u.length; };
+      const obj = (n, body) => { offs[n] = len; push(n + ' 0 obj\n' + body + '\nendobj\n'); };
+      push('%PDF-1.4\n');
+      obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+      obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+      obj(3, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + pw + ' ' + ph + '] /Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >>');
+      const content = 'q ' + pw + ' 0 0 ' + ph + ' 0 0 cm /Im0 Do Q';
+      obj(4, '<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream');
+      offs[5] = len; push('5 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + cv.width + ' /Height ' + cv.height + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpg.length + ' >>\nstream\n'); push(jpg); push('\nendstream\nendobj\n');
+      const xref = len;
+      let x = 'xref\n0 6\n0000000000 65535 f \n';
+      for (let i = 1; i <= 5; i++) x += String(offs[i]).padStart(10, '0') + ' 00000 n \n';
+      push(x + 'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + xref + '\n%%EOF');
+      done(new Blob(parts, { type: 'application/pdf' }));
+    }).catch(() => done(null));
+  }, 'image/jpeg', 0.95);
+}
+async function shareReportPdf() {
+  const cv = window._reportCv; if (!cv) return;
+  const btn = document.getElementById('reportPdfBtn'), old = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span>جارٍ التجهيز…</span>'; }
+  buildReportPdf(cv, async pdf => {
+    if (btn) { btn.disabled = false; btn.innerHTML = old; }
+    if (!pdf) return;
+    const file = new File([pdf], 'monthly-report.pdf', { type: 'application/pdf' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: 'التقرير الشهري' }); return; } catch (e) { if (e && e.name === 'AbortError') return; } }
+    const url = URL.createObjectURL(pdf), a = document.createElement('a');
+    a.href = url; a.download = 'monthly-report.pdf'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 4000);
+  });
 }
 async function shareReportImage() {
   const blob = window._reportBlob; if (!blob) return;
@@ -1381,12 +1423,13 @@ function openReport() {
   mount.innerHTML = `<div class="bylaws-overlay" id="reportOverlay"><div class="bylaws-sheet" role="dialog" aria-modal="true" aria-label="التقرير الشهري">
     <div class="bylaws-head"><div class="bylaws-head-top"><div><div class="bylaws-kicker">قابل للمشاركة</div><div class="bylaws-title">التقرير الشهري</div></div><button class="bylaws-close" id="reportCloseBtn" type="button" aria-label="إغلاق">${ICONS.close}</button></div></div>
     <div class="bylaws-body" id="reportBody">${reportBodyHtml(r)}</div>
-    <div class="sf-rep-actions"><button type="button" class="sf-btn pri" id="reportShareBtn">${ICONS.share}<span>مشاركة</span></button><button type="button" class="sf-btn" id="reportImgBtn" disabled>${ICONS.image || ''}<span>صورة</span></button></div>
+    <div class="sf-rep-actions"><button type="button" class="sf-btn pri" id="reportShareBtn">${ICONS.share}<span>مشاركة</span></button><button type="button" class="sf-btn" id="reportImgBtn" disabled>${ICONS.image || ''}<span>صورة</span></button><button type="button" class="sf-btn" id="reportPdfBtn" disabled><span>PDF أعلى جودة</span></button></div>
   </div></div>`;
   document.body.style.overflow = 'hidden';
   bindOverlayClose('reportOverlay', 'reportCloseBtn', closeReport);
   document.getElementById('reportShareBtn').addEventListener('click', shareReportText);
   document.getElementById('reportImgBtn').addEventListener('click', shareReportImage);
+  document.getElementById('reportPdfBtn').addEventListener('click', shareReportPdf);
   document.addEventListener('keydown', reportEscHandler);
   prepareReportImage(r);
 }
