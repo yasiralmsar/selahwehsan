@@ -787,6 +787,20 @@ footer{text-align:center;color:var(--text-3)!important;font-size:12px;padding:0 
 .mr-note .ic svg{width:18px;height:18px}
 .mr-note.ok{background:var(--ok-dim);color:var(--ok)}.mr-note.warn{background:rgba(245,166,35,.17);color:#8A5A00}
 :root[data-theme="dark"] .mr-note.warn{background:rgba(245,177,76,.15);color:#F5B14C}.mr-note.info{background:var(--pending-dim);color:var(--text-1)}
+.sf-row[data-ridx]{cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .15s ease}
+.sf-row[data-ridx]:active{transform:scale(.985)}
+.sf-row[data-ridx]:active .mr-eye{color:#6A4DF4;transform:scale(.92)}
+.rc-frame{margin-top:14px;border-radius:20px;overflow:hidden;background:var(--surface-2);min-height:120px;display:flex;align-items:center;justify-content:center}
+.rc-frame img{width:100%;height:auto;display:block}
+.rc-pdf{width:100%;height:68vh;border:0;border-radius:20px;background:#fff;margin-top:14px}
+.rc-err{padding:26px 18px;text-align:center;font-size:13.5px;color:var(--text-2);line-height:1.8}
+.rc-meta{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.rc-adm{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:12px 14px;margin-top:10px}
+.rc-adm .t{font-size:13.5px;font-weight:600;color:var(--text-1);line-height:1.6}
+.rc-adm .s{font-size:12px;color:var(--text-2);margin-top:2px}
+.rc-adm .b{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+.rc-chip{font-size:11.5px;border-radius:999px;padding:3px 10px;font-weight:600}
+.rc-chip.y{background:var(--ok-dim);color:var(--ok)}.rc-chip.n{background:var(--pending-dim);color:var(--text-2)}
 .mr-hero{display:flex;align-items:center;gap:14px}
 .mr-hero .mr-ring{width:64px;height:64px}.mr-hero .mr-ring svg{width:64px;height:64px}.mr-hero .mr-ring i{font-size:20px}
 .mr-name{font-size:20px;font-weight:700;color:var(--text-1)}
@@ -1399,7 +1413,7 @@ function paintReport(r, createCanvas) {
   }
   const probe = createCanvas(W * S, 4000 * S);
   const H = draw(probe.getContext('2d'), 4000);
-  const cv = createCanvas(W * S, H * S);
+  const cv = createCanvas(W * S, H * S); cv._S = S;
   draw(cv.getContext('2d'), H);
   return cv;
 }
@@ -1473,12 +1487,13 @@ function memberBodyHtml(r) {
   const note = r.note ? `<div class="mr-note ${r.note.tone}"><span class="ic">${ICONS[r.note.icon]}</span><div>${escapeHtml(r.note.text)}</div></div>` : '';
   const grid = r.months.length ? `<div class="sf-card" style="margin-top:14px"><div class="sf-mu">حالة الأشهر المالية</div><div class="mr-grid">${r.months.map(c => `<div class="mr-m ${c.st}"><b>${escapeHtml(c.name)}</b><small>${c.year}</small></div>`).join('')}</div>`
     + `<div class="mr-leg"><span><i style="background:var(--ok)"></i>مغطّى</span><span><i style="background:var(--awaiting)"></i>جزئي</span><span><i style="background:var(--late)"></i>غير مسدَّد</span></div></div>` : '';
-  const tx = `<div class="sf-card" style="margin-top:14px"><div class="sf-mu">سجل المساهمات${r.tx.length ? ' (' + r.tx.length + (r.tx.length >= 24 ? ' الأحدث' : '') + ')' : ''}</div>`
+  const tx = `<div class="sf-card" style="margin-top:14px"><div class="sf-mu">سجل المساهمات${r.tx.length ? ' (' + r.tx.length + (r.tx.length >= 80 ? ' الأحدث' : '') + ')' : ''}</div>`
     + (r.tx.length ? `<div class="mr-tl">${r.tx.map(t => `<div class="mr-tx"><span class="dot"></span><div class="dt">${escapeHtml(arDate(t[0]))}</div><div class="am">${fmt(t[1])} ريال</div></div>`).join('')}</div>` : '<div class="sf-t" style="margin-top:8px">لا توجد مساهمات مسجلة بعد</div>') + `</div>`;
   return hero + tiles + note + grid + tx + `<div class="sf-sync" style="margin-top:18px">أُعدّ بتاريخ ${escapeHtml(r.today)}</div>`;
 }
 function paintMember(r, createCanvas) {
-  const S = 2, W = 1080, M = 56, IN = 40, FONT = '"Readex Pro","Tajawal","DejaVu Sans",system-ui,sans-serif';
+  let S = 1;
+  const W = 1080, M = 56, IN = 40, FONT = '"Readex Pro","Tajawal","DejaVu Sans",system-ui,sans-serif';
   const GREEN = '#0B7A62', RED = '#B22D27', AMB = '#B7791F', INK = '#1E1B4B', MUTE = '#5B5F86', LINE = '#E3E6F5', ACC = '#6A4DF4';
   const stCol = { ok: GREEN, late: RED, awaiting: AMB, pending: '#636890', new: ACC }[r.status] || ACC;
   function draw(ctx, H) {
@@ -1557,10 +1572,10 @@ function paintMember(r, createCanvas) {
       } });
     }
     // سجل المساهمات
-    const MAXT = 12, shown = r.tx.slice(0, MAXT), TH = 84;
-    const tH = IN + 26 + 24 + (shown.length ? shown.length * TH : 70) + (r.tx.length > MAXT ? 62 : 0) + IN - 12;
+    const shown = r.tx, TH = 84;
+    const tH = IN + 26 + 24 + (shown.length ? shown.length * TH : 70) + IN - 12;
     blocks.push({ h: tH, paint: y => {
-      cardBg(y, tH); label('سجل المساهمات' + (r.tx.length ? ' (' + r.tx.length + (r.tx.length >= 24 ? ' الأحدث' : '') + ')' : ''), y + IN + 26);
+      cardBg(y, tH); label('سجل المساهمات' + (r.tx.length ? ' (' + r.tx.length + (r.tx.length >= 80 ? ' الأحدث' : '') + ')' : ''), y + IN + 26);
       if (!shown.length) { F(32, 500); ctx.fillStyle = INK; ctx.fillText('لا توجد مساهمات مسجلة بعد', iR, y + IN + 26 + 70); return; }
       const top = y + IN + 26 + 24;
       shown.forEach((t, i) => { const ty = top + i * TH + 52;
@@ -1568,7 +1583,6 @@ function paintMember(r, createCanvas) {
         F(32, 500); ctx.fillStyle = INK; ctx.fillText(arDate(t[0]), iR - 52, ty);
         ctx.textAlign = 'left'; F(34, 600); ctx.fillStyle = INK; ctx.fillText(fmt(t[1]) + ' ريال', iL, ty); ctx.textAlign = 'right';
         if (i < shown.length - 1) { ctx.strokeStyle = LINE; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(iL, ty + 26); ctx.lineTo(iR, ty + 26); ctx.stroke(); } });
-      if (r.tx.length > MAXT) { F(28, 500); ctx.fillStyle = MUTE; ctx.fillText('و ' + (r.tx.length - MAXT) + ' حوالات أقدم', iR, top + shown.length * TH + 40); }
     } });
     let y = 392;
     blocks.forEach(b => { b.paint(y); y += b.h + 28; });
@@ -1576,8 +1590,10 @@ function paintMember(r, createCanvas) {
     ctx.fillText('أُعدّ بتاريخ ' + r.today, W / 2, y + 36); ctx.fillText((BANK_INFO.fundName || 'صندوق صلة وإحسان العائلي') + '  ·  تُحدَّث البيانات تلقائيًا', W / 2, y + 78);
     return y + 130;
   }
-  const probe = createCanvas(W * S, 6000 * S), H = draw(probe.getContext('2d'), 6000);
-  const cv = createCanvas(W * S, H * S); draw(cv.getContext('2d'), H); return cv;
+  // الدقة: ×2 ما أمكن، وتنخفض تلقائيًا للتقارير الطويلة جدًا حتى لا تتجاوز حد مساحة الكنفس في الجوالات.
+  const probe = createCanvas(W, 1200), H = draw(probe.getContext('2d'), 1200);
+  S = Math.min(2, Math.floor(Math.sqrt(14e6 / (W * H)) * 100) / 100);
+  const cv = createCanvas(Math.round(W * S), Math.round(H * S)); draw(cv.getContext('2d'), H); cv._S = S; return cv;
 }
 async function prepareMemberImage(r) {
   window._memBlob = null; window._memCv = null;
@@ -1620,6 +1636,101 @@ function openMember(name) {
 document.addEventListener('click', e => { const row = e.target.closest && e.target.closest('.sf-row[data-mname]'); if (row) openMember(row.getAttribute('data-mname')); });
 document.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.sf-row[data-mname]')) { e.preventDefault(); openMember(e.target.getAttribute('data-mname')); } });
 
+/* ===== إيصالات المصروفات: عرض (للجميع) ===== */
+function receiptImgUrls_(id) { return ['https://drive.google.com/thumbnail?id=' + encodeURIComponent(id) + '&sz=w1600', 'https://lh3.googleusercontent.com/d/' + encodeURIComponent(id) + '=w1600']; }
+function openReceipt(i) {
+  const e = (EXPENSES_DATA || [])[i]; if (!e || !e.rc || !e.rc.id) return;
+  const id = e.rc.id, isPdf = e.rc.mime === 'application/pdf', mount = document.getElementById('reportMount');
+  const viewUrl = 'https://drive.google.com/file/d/' + encodeURIComponent(id) + '/view';
+  mount.innerHTML = `<div class="bylaws-overlay" id="reportOverlay"><div class="bylaws-sheet" role="dialog" aria-modal="true" aria-label="إيصال العملية">
+    <div class="bylaws-head"><div class="bylaws-head-top"><div><div class="bylaws-kicker">إيصال العملية</div><div class="bylaws-title">${escapeHtml(String(e.description || '').replace(/\s+/g, ' ').trim().slice(0, 60))}</div></div><button class="bylaws-close" id="reportCloseBtn" type="button" aria-label="إغلاق">${ICONS.close}</button></div></div>
+    <div class="bylaws-body" id="reportBody">
+      <div class="sf-card" style="margin-top:2px"><div class="rc-meta"><div><div class="sf-mu">التاريخ</div><div class="sf-t">${escapeHtml(arDate(e.date))}</div></div><div style="text-align:left"><div class="sf-mu">المبلغ</div><div class="sf-t">${fmt(e.amount)} ﷼</div></div></div></div>
+      ${isPdf ? `<iframe class="rc-pdf" src="https://drive.google.com/file/d/${encodeURIComponent(id)}/preview" title="إيصال العملية" loading="lazy"></iframe>` : `<div class="rc-frame" id="rcFrame"><img id="rcImg" alt="إيصال العملية" decoding="async"></div>`}
+    </div>
+    <div class="sf-rep-actions"><a class="sf-btn pri" href="${viewUrl}" target="_blank" rel="noopener" style="text-decoration:none"><span>فتح الإيصال في نافذة جديدة</span></a></div>
+  </div></div>`;
+  document.body.style.overflow = 'hidden';
+  bindOverlayClose('reportOverlay', 'reportCloseBtn', closeReport);
+  document.addEventListener('keydown', reportEscHandler);
+  if (!isPdf) {
+    const img = document.getElementById('rcImg'), urls = receiptImgUrls_(id); let k = 0;
+    img.onerror = () => { k++; if (k < urls.length) img.src = urls[k]; else document.getElementById('rcFrame').innerHTML = `<div class="rc-err">تعذّر عرض الصورة هنا.<br>يمكنك فتحها من الزر بالأسفل.</div>`; };
+    img.src = urls[0];
+  }
+}
+document.addEventListener('click', ev => { const row = ev.target.closest && ev.target.closest('.sf-row[data-ridx]'); if (row) openReceipt(Number(row.getAttribute('data-ridx'))); });
+document.addEventListener('keydown', ev => { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('.sf-row[data-ridx]')) { ev.preventDefault(); openReceipt(Number(ev.target.getAttribute('data-ridx'))); } });
+
+/* ===== إيصالات المصروفات: رفع وحذف (لوحة المشرف) ===== */
+let receiptsFlash = '';
+let receiptsPendingIdx = -1;
+function receiptsMsgEl_() { return document.getElementById('receiptsMsg'); }
+function renderReceiptsAdmin_() {
+  const el = receiptsMsgEl_(); if (!el) return;
+  const list = EXPENSES_DATA || [];
+  if (!list.length) { el.innerHTML = receiptsFlash + '<div class="admin-note">لا توجد مصروفات مسجَّلة بعد.</div>'; return; }
+  const withRc = list.filter(e => e.rc && e.rc.id).length;
+  el.innerHTML = receiptsFlash + `<div class="admin-note" style="margin-top:10px">${withRc} من ${list.length} مصروف لها إيصال. الصور تُصغَّر تلقائيًا، وملفات PDF حتى 3.5 ميغابايت. ما يُرفع يظهر لكل من يفتح الموقع، فاحجب البيانات الشخصية قبل الرفع إن لزم.</div>`
+    + list.map((e, i) => ({ e, i })).reverse().map(({ e, i }) => {
+      const has = e.rc && e.rc.id;
+      return `<div class="rc-adm" data-i="${i}"><div class="t">${escapeHtml(String(e.description || '').replace(/\s+/g, ' ').trim())}</div><div class="s">${escapeHtml(arDate(e.date))} · ${fmt(e.amount)} ﷼</div><div class="b"><span class="rc-chip ${has ? 'y' : 'n'}">${has ? 'له إيصال' : 'بلا إيصال'}</span><button type="button" class="admin-btn rc-up" style="width:auto;padding:6px 14px">${has ? 'استبدال' : 'إرفاق إيصال'}</button>${has ? '<button type="button" class="admin-btn rc-view" style="width:auto;padding:6px 14px">معاينة</button><button type="button" class="admin-btn rc-del" style="width:auto;padding:6px 14px">حذف</button>' : ''}</div></div>`;
+    }).join('') + '<input type="file" id="rcFile" accept="image/*,application/pdf" hidden>';
+  el.querySelectorAll('.rc-up').forEach(b => b.addEventListener('click', () => { receiptsPendingIdx = Number(b.closest('.rc-adm').dataset.i); const f = document.getElementById('rcFile'); f.value = ''; f.click(); }));
+  el.querySelectorAll('.rc-view').forEach(b => b.addEventListener('click', () => openReceipt(Number(b.closest('.rc-adm').dataset.i))));
+  el.querySelectorAll('.rc-del').forEach(b => b.addEventListener('click', () => handleDeleteReceipt_(Number(b.closest('.rc-adm').dataset.i))));
+  const f = document.getElementById('rcFile'); if (f) f.addEventListener('change', () => { if (f.files && f.files[0]) handleUploadReceipt_(f.files[0]); });
+}
+function handleShowReceipts() {
+  const msgEl = receiptsMsgEl_();
+  if (!adminKeyValue) { msgEl.innerHTML = '<div class="admin-msg error">الرجاء إدخال مفتاح المشرف أولاً.</div>'; return; }
+  if (isAdminKeyCachedInvalid_()) { msgEl.innerHTML = ADMIN_KEY_CACHED_INVALID_MSG; return; }
+  receiptsFlash = ''; renderReceiptsAdmin_();
+}
+function readAsBase64_(blob) { return new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1] || ''); fr.onerror = () => rej(new Error('تعذّرت قراءة الملف')); fr.readAsDataURL(blob); }); }
+async function loadImageForReceipt_(file) {
+  if (window.createImageBitmap) { try { return await createImageBitmap(file); } catch (e) { /* يجرّب Image */ } }
+  return await new Promise((res, rej) => { const url = URL.createObjectURL(file), im = new Image(); im.onload = () => { URL.revokeObjectURL(url); res(im); }; im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('تعذّر فتح الصورة')); }; im.src = url; });
+}
+const RECEIPT_MAX_RAW = 3.5 * 1024 * 1024;
+async function prepareReceiptFile_(file) {
+  if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name)) {
+    if (file.size > RECEIPT_MAX_RAW) throw new Error('ملف PDF أكبر من 3.5 ميغابايت');
+    return { mime: 'application/pdf', data: await readAsBase64_(file), name: file.name };
+  }
+  if (!/^image\//.test(file.type)) throw new Error('اختر صورة أو ملف PDF');
+  const img = await loadImageForReceipt_(file), iw = img.width, ih = img.height, sc = Math.min(1, 1600 / Math.max(iw, ih));
+  const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.round(iw * sc)); cv.height = Math.max(1, Math.round(ih * sc));
+  const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(img, 0, 0, cv.width, cv.height);
+  let blob = null;
+  for (const q of [0.85, 0.7, 0.55]) { blob = await new Promise(r => cv.toBlob(r, 'image/jpeg', q)); if (blob && blob.size <= RECEIPT_MAX_RAW) break; }
+  if (!blob || blob.size > RECEIPT_MAX_RAW) throw new Error('تعذّر تصغير الصورة بما يكفي');
+  return { mime: 'image/jpeg', data: await readAsBase64_(blob), name: 'receipt.jpg' };
+}
+async function handleUploadReceipt_(file) {
+  const e = (EXPENSES_DATA || [])[receiptsPendingIdx]; if (!e) return;
+  const el = receiptsMsgEl_(); const keep = el.innerHTML;
+  el.insertAdjacentHTML('afterbegin', '<div class="admin-msg" id="rcBusy">جاري تجهيز الإيصال ورفعه...</div>');
+  try {
+    const f = await prepareReceiptFile_(file);
+    const result = await namelessPost_({ action: 'uploadExpenseReceipt', date: e.date, amount: e.amount, desc: e.description, mime: f.mime, name: f.name, data: f.data });
+    if (!result.success) throw new Error(result.error || 'خطأ غير معروف');
+    e.rc = { id: result.id, mime: result.mime };
+    receiptsFlash = '<div class="admin-msg success">تم حفظ الإيصال. يظهر للجميع خلال دقائق.</div>';
+  } catch (err) { receiptsFlash = '<div class="admin-msg error">تعذّر الرفع: ' + escapeHtml(err.message) + '</div>'; }
+  renderReceiptsAdmin_();
+}
+async function handleDeleteReceipt_(i) {
+  const e = (EXPENSES_DATA || [])[i]; if (!e || !e.rc) return;
+  if (!confirm('حذف إيصال هذه العملية؟')) return;
+  try {
+    const result = await namelessPost_({ action: 'deleteExpenseReceipt', date: e.date, amount: e.amount, desc: e.description });
+    if (!result.success) throw new Error(result.error || 'خطأ غير معروف');
+    delete e.rc; receiptsFlash = '<div class="admin-msg success">تم حذف الإيصال.</div>';
+  } catch (err) { receiptsFlash = '<div class="admin-msg error">تعذّر الحذف: ' + escapeHtml(err.message) + '</div>'; }
+  renderReceiptsAdmin_();
+}
+
 function browserCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
 async function prepareReportImage(r) {
   window._reportBlob = null;
@@ -1645,7 +1756,7 @@ function buildReportPdf(cv, done) {
   cv.toBlob(jb => {
     if (!jb) { done(null); return; }
     jb.arrayBuffer().then(buf => {
-      const jpg = new Uint8Array(buf), pw = cv.width / 2, ph = cv.height / 2; // نقاط PDF = بكسلات المنطق (1080)
+      const sc = cv._S || 2, jpg = new Uint8Array(buf), pw = Math.round(cv.width / sc), ph = Math.round(cv.height / sc); // نقاط PDF = بكسلات المنطق (1080)
       const enc = new TextEncoder(), parts = [], offs = [];
       let len = 0;
       const push = d => { const u = typeof d === 'string' ? enc.encode(d) : d; parts.push(u); len += u.length; };
@@ -1903,7 +2014,8 @@ function renderApp(d) {
   const expRows = expList.slice().reverse().map((e, idx) => {
     const k = EXPENSE_KINDS[expenseKind(e.description)];
     const title = SHOW_EXPENSE_DESCRIPTIONS ? escapeHtml(String(e.description || '').replace(/\s+/g, ' ').trim()) : k.label;
-    return `<div class="sf-row cascade-item" data-cascade-idx="${idx}"><span class="tl ${k.tone}">${ICONS[k.icon]}</span><div class="sf-rb"><div class="sf-rn wrap">${title}</div><div class="sf-rs">${arDate(e.date)}</div></div><div class="sf-amt">${fmt(e.amount)} ﷼</div></div>`;
+    const hasRc = e.rc && e.rc.id;
+    return `<div class="sf-row cascade-item" data-cascade-idx="${idx}"${hasRc ? ` data-ridx="${expList.length - 1 - idx}" role="button" tabindex="0"` : ''}><span class="tl ${k.tone}">${ICONS[k.icon]}</span><div class="sf-rb"><div class="sf-rn wrap">${title}</div><div class="sf-rs">${arDate(e.date)}</div></div><div class="sf-amt">${fmt(e.amount)} ﷼</div>${hasRc ? `<span class="mr-eye" aria-label="معاينة إيصال العملية">${ICONS.eye}</span>` : ''}</div>`;
   }).join('');
 
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -2695,6 +2807,7 @@ const ADMIN_ACTIONS = [
   { value: 'status', label: 'تغيير حالة السداد' },
   { value: 'deleteTransfer', label: 'حذف حوالة' },
   { value: 'manageExpense', label: 'تعديل / حذف مصروف' },
+  { value: 'receipts', label: 'إيصالات المصروفات' },
   // 'reviewDate' أُزيل من القائمة عمدًا: تاريخ المراجعة أصبح معادلة تلقائية (=TODAY()-16) في الشيت،
   // وأي تحديث يدوي من هنا يكتب فوقها ويعيدها لتاريخ ثابت. الدالة/الخادم ما زالا موجودين احتياطًا.
   { value: 'subscriptionAmount', label: 'قيمة الاشتراك الشهري' },
@@ -2833,6 +2946,15 @@ function openAdminPanel() {
           <div id="namelessOrderMsg"></div>
         </div>
 
+        <div class="admin-section" data-section="receipts">
+          <div class="admin-field">
+            <label>إيصالات المصروفات</label>
+            <div class="admin-note">أرفق صورة أو PDF لإيصال كل عملية خصم، فتظهر أيقونة عين بجانبها في تبويب المصروفات لمعاينته.</div>
+          </div>
+          <div class="admin-actions"><button class="admin-btn" id="showReceiptsBtn">عرض المصروفات والإيصالات</button></div>
+          <div id="receiptsMsg"></div>
+        </div>
+
         <div class="admin-section" data-section="siteActivity">
           <div class="admin-field">
             <label>نشاط الموقع</label>
@@ -2874,6 +2996,7 @@ function openAdminPanel() {
   document.getElementById('setSubscriptionAmountBtn').addEventListener('click', handleSetSubscriptionAmount);
   document.getElementById('showNamelessOrderBtn').addEventListener('click', handleShowNamelessOrder);
   document.getElementById('showSiteActivityBtn').addEventListener('click', handleShowSiteActivity);
+  document.getElementById('showReceiptsBtn').addEventListener('click', handleShowReceipts);
   initNamelessOrderUi_();
 
   const actionSelect = document.getElementById('adminActionSelect');
